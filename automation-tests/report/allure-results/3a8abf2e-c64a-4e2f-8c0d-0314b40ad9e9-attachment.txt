@@ -1,0 +1,32 @@
+2026-04-17 13:32:36 [[36mDEBUG[0m] [utils.http_client] 
+============================================================
+[Request #1] POST http://localhost:8088/api/user/login
+2026-04-17 13:32:36 [[36mDEBUG[0m] [utils.http_client] Headers: {'Content-Type': 'application/json', 'Accept': 'application/json', 'User-Agent': 'BookingApi-Test/1.0'}
+2026-04-17 13:32:36 [[36mDEBUG[0m] [utils.http_client] Body: {'username': 'test_user', 'password': 'Test@123456'}
+2026-04-17 13:32:36 [[36mDEBUG[0m] [utils.http_client] ============================================================
+2026-04-17 13:32:36 [[36mDEBUG[0m] [utils.http_client] 
+[Response] Status: [92m200[0m Time: 0.006s
+2026-04-17 13:32:36 [[36mDEBUG[0m] [utils.http_client] Body: {
+  "code": 100100,
+  "message": "用户不存在",
+  "data": null,
+  "timestamp": 1776403956805,
+  "requestId": null,
+  "success": false
+}
+2026-04-17 13:32:36 [[36mDEBUG[0m] [utils.http_client] ============================================================
+2026-04-17 13:32:36 [[36mDEBUG[0m] [utils.http_client] 
+============================================================
+[Request #2] POST http://localhost:8088/api/orders/10005/refund
+2026-04-17 13:32:36 [[36mDEBUG[0m] [utils.http_client] Headers: {'Content-Type': 'application/json', 'Accept': 'application/json', 'User-Agent': 'BookingApi-Test/1.0', 'Authorization': '***'}
+2026-04-17 13:32:36 [[36mDEBUG[0m] [utils.http_client] Body: {'reason': '不想要了', 'refundType': 1}
+2026-04-17 13:32:36 [[36mDEBUG[0m] [utils.http_client] ============================================================
+2026-04-17 13:32:36 [[36mDEBUG[0m] [utils.http_client] 
+[Response] Status: [91m401[0m Time: 0.003s
+2026-04-17 13:32:36 [[36mDEBUG[0m] [utils.http_client] Body: {
+  "code": 401,
+  "message": "Token无效或已过期"
+}
+2026-04-17 13:32:36 [[36mDEBUG[0m] [utils.http_client] ============================================================
+2026-04-17 13:32:36 [[31mERROR[0m] [utils.http_client] Request error: 401 Client Error:  for url: http://localhost:8088/api/orders/10005/refund
+2026-04-17 13:32:36 [[31mERROR[0m] [utils.asserts] [✗] : 不满足退款条件: expected=100309, actual=-1

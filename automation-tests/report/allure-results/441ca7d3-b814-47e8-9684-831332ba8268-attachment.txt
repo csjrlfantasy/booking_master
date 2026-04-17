@@ -1,0 +1,17 @@
+DEBUG    utils.http_client:http_client.py:108 
+============================================================
+[Request #1] POST http://localhost:8080/api/v1/orders/10004/cancel
+DEBUG    utils.http_client:http_client.py:109 Headers: {'Content-Type': 'application/json', 'Accept': 'application/json', 'User-Agent': 'BookingApi-Test/1.0', 'Authorization': '***'}
+DEBUG    utils.http_client:http_client.py:111 Body: {'reason': '不想要了'}
+DEBUG    utils.http_client:http_client.py:112 ============================================================
+DEBUG    utils.http_client:http_client.py:119 
+[Response] Status: [91m403[0m Time: 0.003s
+DEBUG    utils.http_client:http_client.py:124 Body: {
+  "servlet": "Stapler",
+  "message": "No valid crumb was included in the request",
+  "url": "/api/v1/orders/10004/cancel",
+  "status": "403"
+}
+DEBUG    utils.http_client:http_client.py:127 ============================================================
+ERROR    utils.http_client:http_client.py:216 Request error: 403 Client Error: Forbidden for url: http://localhost:8080/api/v1/orders/10004/cancel
+ERROR    utils.asserts:asserts.py:60 [✗] : 已支付订单需退款: expected=100308, actual=-1

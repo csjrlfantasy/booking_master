@@ -1,0 +1,15 @@
+DEBUG    utils.http_client:http_client.py:108 
+============================================================
+[Request #1] POST http://localhost:8088/api/orders
+DEBUG    utils.http_client:http_client.py:109 Headers: {'Content-Type': 'application/json', 'Accept': 'application/json', 'User-Agent': 'BookingApi-Test/1.0'}
+DEBUG    utils.http_client:http_client.py:111 Body: {'ticketId': 1001, 'sessionId': 1001, 'quantity': 2, 'priceLevelId': 1001, 'contactName': '张三', 'contactPhone': '13800138000', 'contactIdCard': '110101199001011234'}
+DEBUG    utils.http_client:http_client.py:112 ============================================================
+DEBUG    utils.http_client:http_client.py:119 
+[Response] Status: [91m401[0m Time: 0.013s
+DEBUG    utils.http_client:http_client.py:124 Body: {
+  "code": 401,
+  "message": "未登录或Token已过期"
+}
+DEBUG    utils.http_client:http_client.py:127 ============================================================
+ERROR    utils.http_client:http_client.py:216 Request error: 401 Client Error:  for url: http://localhost:8088/api/orders
+ERROR    utils.asserts:asserts.py:60 [✗] : 未登录: expected=401, actual=-1

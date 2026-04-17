@@ -1,0 +1,8 @@
+2026-04-17 13:28:06 [[36mDEBUG[0m] [utils.http_client] 
+============================================================
+[Request #1] POST http://localhost:8088/api/v1/orders
+2026-04-17 13:28:06 [[36mDEBUG[0m] [utils.http_client] Headers: {'Content-Type': 'application/json', 'Accept': 'application/json', 'User-Agent': 'BookingApi-Test/1.0', 'Authorization': '***'}
+2026-04-17 13:28:06 [[36mDEBUG[0m] [utils.http_client] Body: {'ticketId': 1001, 'sessionId': 1001, 'quantity': 2, 'priceLevelId': 1001, 'contactName': '张三', 'contactPhone': '13800138000', 'contactIdCard': '110101199001011234'}
+2026-04-17 13:28:06 [[36mDEBUG[0m] [utils.http_client] ============================================================
+2026-04-17 13:28:28 [[31mERROR[0m] [utils.http_client] Request error: HTTPConnectionPool(host='localhost', port=8088): Max retries exceeded with url: /api/v1/orders (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x00000219506046A0>: Failed to establish a new connection: [WinError 10061] 由于目标计算机积极拒绝，无法连接。'))
+2026-04-17 13:28:28 [[36mDEBUG[0m] [utils.asserts] [✓] 创建订单: code=-1, Response should fail

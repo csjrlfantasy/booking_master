@@ -1,0 +1,17 @@
+DEBUG    utils.http_client:http_client.py:108 
+============================================================
+[Request #1] POST http://localhost:8080/api/v1/orders/10001/pay
+DEBUG    utils.http_client:http_client.py:109 Headers: {'Content-Type': 'application/json', 'Accept': 'application/json', 'User-Agent': 'BookingApi-Test/1.0', 'Authorization': '***'}
+DEBUG    utils.http_client:http_client.py:111 Body: {'payChannel': 'wechat'}
+DEBUG    utils.http_client:http_client.py:112 ============================================================
+DEBUG    utils.http_client:http_client.py:119 
+[Response] Status: [91m403[0m Time: 0.004s
+DEBUG    utils.http_client:http_client.py:124 Body: {
+  "servlet": "Stapler",
+  "message": "No valid crumb was included in the request",
+  "url": "/api/v1/orders/10001/pay",
+  "status": "403"
+}
+DEBUG    utils.http_client:http_client.py:127 ============================================================
+ERROR    utils.http_client:http_client.py:216 Request error: 403 Client Error: Forbidden for url: http://localhost:8080/api/v1/orders/10001/pay
+DEBUG    utils.asserts:asserts.py:58 [✓] 发起支付: code=-1, Response should fail

@@ -1,0 +1,15 @@
+2026-04-17 13:30:58 [[36mDEBUG[0m] [utils.http_client] 
+============================================================
+[Request #1] POST http://localhost:8088/api/v1/orders/10004/cancel
+2026-04-17 13:30:58 [[36mDEBUG[0m] [utils.http_client] Headers: {'Content-Type': 'application/json', 'Accept': 'application/json', 'User-Agent': 'BookingApi-Test/1.0', 'Authorization': '***'}
+2026-04-17 13:30:58 [[36mDEBUG[0m] [utils.http_client] Body: {'reason': '不想要了'}
+2026-04-17 13:30:58 [[36mDEBUG[0m] [utils.http_client] ============================================================
+2026-04-17 13:30:58 [[36mDEBUG[0m] [utils.http_client] 
+[Response] Status: [91m401[0m Time: 0.003s
+2026-04-17 13:30:58 [[36mDEBUG[0m] [utils.http_client] Body: {
+  "code": 401,
+  "message": "Token无效或已过期"
+}
+2026-04-17 13:30:58 [[36mDEBUG[0m] [utils.http_client] ============================================================
+2026-04-17 13:30:58 [[31mERROR[0m] [utils.http_client] Request error: 401 Client Error:  for url: http://localhost:8088/api/v1/orders/10004/cancel
+2026-04-17 13:30:58 [[31mERROR[0m] [utils.asserts] [✗] : 已支付订单需退款: expected=100308, actual=-1

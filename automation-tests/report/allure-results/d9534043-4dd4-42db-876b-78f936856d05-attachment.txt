@@ -1,0 +1,11 @@
+DEBUG    utils.http_client:http_client.py:108 
+============================================================
+[Request #1] POST http://localhost:8088/api/v1/orders
+DEBUG    utils.http_client:http_client.py:109 Headers: {'Content-Type': 'application/json', 'Accept': 'application/json', 'User-Agent': 'BookingApi-Test/1.0', 'Authorization': '***'}
+DEBUG    utils.http_client:http_client.py:111 Body: {'ticketId': 1001, 'sessionId': 1001, 'quantity': 2, 'priceLevelId': 1001, 'contactName': '张三', 'contactPhone': '13800138000', 'contactIdCard': '110101199001011234'}
+DEBUG    utils.http_client:http_client.py:112 ============================================================
+WARNING  urllib3.connectionpool:connectionpool.py:868 Retrying (Retry(total=2, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError('<urllib3.connection.HTTPConnection object at 0x000002195052BEE0>: Failed to establish a new connection: [WinError 10061] 由于目标计算机积极拒绝，无法连接。')': /api/v1/orders
+WARNING  urllib3.connectionpool:connectionpool.py:868 Retrying (Retry(total=1, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError('<urllib3.connection.HTTPConnection object at 0x00000219506042E0>: Failed to establish a new connection: [WinError 10061] 由于目标计算机积极拒绝，无法连接。')': /api/v1/orders
+WARNING  urllib3.connectionpool:connectionpool.py:868 Retrying (Retry(total=0, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError('<urllib3.connection.HTTPConnection object at 0x00000219506044C0>: Failed to establish a new connection: [WinError 10061] 由于目标计算机积极拒绝，无法连接。')': /api/v1/orders
+ERROR    utils.http_client:http_client.py:216 Request error: HTTPConnectionPool(host='localhost', port=8088): Max retries exceeded with url: /api/v1/orders (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x00000219506046A0>: Failed to establish a new connection: [WinError 10061] 由于目标计算机积极拒绝，无法连接。'))
+DEBUG    utils.asserts:asserts.py:58 [✓] 创建订单: code=-1, Response should fail
