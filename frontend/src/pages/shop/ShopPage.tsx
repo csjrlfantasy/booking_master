@@ -49,6 +49,7 @@ import {
   getUpcomingTickets,
   mockPayOrder,
   remindTicket,
+  type CustomerLoginResponse,
   type CreateCustomerOrderResponse,
   type CustomerOrderDetail,
   type CustomerOrderListItem,
@@ -715,11 +716,23 @@ export function ShopPage() {
         onHome={goHome}
         onCategories={goCategories}
         onUpcoming={goUpcoming}
-        onOrders={() => (customerToken ? setActiveTab('orders') : goLogin())}
+        onOrders={() => (customerToken ? setActiveTab('me') : goLogin())}
       />
 
       {activeTab === 'orders' && !customerToken ? (
         <LoginRequiredPanel onLogin={goLogin} />
+      ) : activeTab === 'me' && !customerToken ? (
+        <LoginRequiredPanel onLogin={goLogin} />
+      ) : activeTab === 'me' ? (
+        <ProfileView
+          profile={profileQuery.data}
+          customerName={customerName}
+          customerUserId={customerUserId}
+          walletBalances={walletBalances}
+          loading={profileQuery.isLoading}
+          onOrders={() => setActiveTab('orders')}
+          onLogout={logout}
+        />
       ) : activeTab === 'orders' ? (
         <OrdersView
           token={customerToken}
@@ -861,7 +874,7 @@ export function ShopPage() {
         onCategories={goCategories}
         onUpcoming={goUpcoming}
         onOrders={() => (customerToken ? setActiveTab('orders') : goLogin())}
-        onMe={() => (customerToken ? setActiveTab('orders') : goLogin())}
+        onMe={() => (customerToken ? setActiveTab('me') : goLogin())}
       />
     </main>
   );
@@ -953,6 +966,85 @@ function LoginRequiredPanel({ onLogin }: { onLogin: () => void }) {
         <p className="mt-2 text-sm text-gray-500">订单、余额和支付状态都绑定在你的客户账号下。</p>
         <button type="button" onClick={onLogin} className="mt-6 inline-flex h-11 items-center justify-center rounded-lg bg-rose-600 px-6 text-sm font-semibold text-white hover:bg-rose-700">
           去登录
+        </button>
+      </div>
+    </section>
+  );
+}
+
+function ProfileView({
+  profile,
+  customerName,
+  customerUserId,
+  walletBalances,
+  loading,
+  onOrders,
+  onLogout,
+}: {
+  profile?: CustomerLoginResponse;
+  customerName: string;
+  customerUserId: string | number;
+  walletBalances: WalletBalances;
+  loading: boolean;
+  onOrders: () => void;
+  onLogout: () => void;
+}) {
+  const displayName = profile?.nickname || profile?.username || customerName || '票多星用户';
+  const userId = profile?.id || profile?.userId || customerUserId || '-';
+
+  return (
+    <section className="mx-auto max-w-5xl px-4 py-6">
+      <div className="rounded-lg bg-gradient-to-br from-rose-600 to-orange-500 p-6 text-white">
+        <div className="flex items-center gap-4">
+          <div className="grid h-16 w-16 place-items-center rounded-lg bg-white/20">
+            <UserRound className="h-8 w-8" />
+          </div>
+          <div className="min-w-0">
+            <div className="text-2xl font-extrabold">{loading ? '资料同步中' : displayName}</div>
+            <div className="mt-1 text-sm text-white/80">客户ID：{userId}</div>
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-4 grid gap-3 md:grid-cols-2">
+        <div className="rounded-lg border border-emerald-100 bg-white p-5">
+          <div className="flex items-center gap-2 text-sm font-semibold text-emerald-700">
+            <CreditCard className="h-4 w-4" />
+            微信余额
+          </div>
+          <div className="mt-3 text-3xl font-extrabold text-gray-950">{currency(walletBalances.wechatBalance)}</div>
+        </div>
+        <div className="rounded-lg border border-sky-100 bg-white p-5">
+          <div className="flex items-center gap-2 text-sm font-semibold text-sky-700">
+            <CreditCard className="h-4 w-4" />
+            支付宝余额
+          </div>
+          <div className="mt-3 text-3xl font-extrabold text-gray-950">{currency(walletBalances.alipayBalance)}</div>
+        </div>
+      </div>
+
+      <div className="mt-4 grid gap-3 md:grid-cols-2">
+        <button
+          type="button"
+          onClick={onOrders}
+          className="flex items-center justify-between rounded-lg border border-gray-200 bg-white p-5 text-left hover:border-rose-300"
+        >
+          <span>
+            <span className="block text-base font-bold text-gray-950">我的订单</span>
+            <span className="mt-1 block text-sm text-gray-500">查看待支付、已支付和退款订单</span>
+          </span>
+          <ShoppingBag className="h-6 w-6 text-rose-600" />
+        </button>
+        <button
+          type="button"
+          onClick={onLogout}
+          className="flex items-center justify-between rounded-lg border border-gray-200 bg-white p-5 text-left hover:border-gray-400"
+        >
+          <span>
+            <span className="block text-base font-bold text-gray-950">退出登录</span>
+            <span className="mt-1 block text-sm text-gray-500">切换客户账号或重新登录</span>
+          </span>
+          <LogOut className="h-6 w-6 text-gray-500" />
         </button>
       </div>
     </section>
