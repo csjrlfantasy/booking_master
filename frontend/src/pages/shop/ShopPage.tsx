@@ -978,7 +978,7 @@ function TicketDetailContent({ detail, loading }: { detail?: any; loading: boole
 
   return (
     <section className="overflow-hidden rounded-lg border border-gray-200 bg-white">
-      <div className="grid items-start gap-0 lg:grid-cols-[320px_1fr]">
+      <div className="grid items-start gap-0 lg:grid-cols-[minmax(260px,360px)_1fr]">
         <div className="bg-gray-100 p-4">
           {detail.poster ? (
             <img src={detail.poster} alt={detail.name} className="aspect-[4/5] max-h-[520px] w-full rounded-md object-cover" />
@@ -988,7 +988,7 @@ function TicketDetailContent({ detail, loading }: { detail?: any; loading: boole
             </div>
           )}
         </div>
-        <div className="p-5 md:p-7">
+        <div className="min-w-0 p-5 md:p-7">
           <span className="rounded-md bg-rose-50 px-2 py-1 text-xs font-medium text-rose-700">{statusName(detail.status)}</span>
           <h1 className="mt-4 text-2xl font-extrabold leading-tight md:text-4xl">{detail.name}</h1>
           {detail.subName ? <p className="mt-2 text-base text-gray-600">{detail.subName}</p> : null}
