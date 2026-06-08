@@ -1,4 +1,4 @@
-import { get, post, put } from '@/services/http';
+import { del, get, post, put } from '@/services/http';
 import type { PageResult } from '@/types';
 
 export interface ShopTicketListItem {
@@ -88,6 +88,24 @@ export interface CustomerLoginResponse {
   expiresIn?: number;
 }
 
+export interface CustomerIdentity {
+  id: number;
+  realName: string;
+  idCardNo?: string;
+  maskedIdCardNo?: string;
+  phone?: string;
+  self?: boolean;
+  defaultIdentity?: boolean;
+}
+
+export interface CustomerIdentityPayload {
+  realName: string;
+  idCardNo: string;
+  phone?: string;
+  self?: boolean;
+  defaultIdentity?: boolean;
+}
+
 export interface CreateCustomerOrderRequest {
   ticketId: number;
   sessionId: number;
@@ -96,6 +114,11 @@ export interface CreateCustomerOrderRequest {
     priceLevelName?: string;
     quantity: number;
     unitPrice: number;
+    attendees: Array<{
+      identityId?: number;
+      realName?: string;
+      idCardNo?: string;
+    }>;
   }>;
   contactName: string;
   contactPhone: string;
@@ -268,6 +291,38 @@ export function loginCustomer(username: string, password: string) {
 
 export function getCustomerProfile(token: string, userId: number | string) {
   return get<CustomerLoginResponse>(`/user/${userId}`, undefined, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+}
+
+export function getCustomerIdentities(token: string) {
+  return get<CustomerIdentity[]>('/user/identities', undefined, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+}
+
+export function createCustomerIdentity(token: string, data: CustomerIdentityPayload) {
+  return post<CustomerIdentity>('/user/identities', data, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+}
+
+export function updateCustomerIdentity(token: string, id: number, data: CustomerIdentityPayload) {
+  return put<CustomerIdentity>(`/user/identities/${id}`, data, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+}
+
+export function deleteCustomerIdentity(token: string, id: number) {
+  return del<void>(`/user/identities/${id}`, {
     headers: {
       Authorization: `Bearer ${token}`,
     },
