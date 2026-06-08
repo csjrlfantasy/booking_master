@@ -33,8 +33,11 @@ import {
 import {
   applyRefund,
   cancelCustomerOrder,
+  createCustomerIdentity,
   createTicketComment,
   createCustomerOrder,
+  deleteCustomerIdentity,
+  getCustomerIdentities,
   getCustomerOrderDetail,
   getCustomerOrders,
   getCustomerProfile,
@@ -50,6 +53,7 @@ import {
   mockPayOrder,
   remindTicket,
   type CustomerLoginResponse,
+  type CustomerIdentity,
   type CreateCustomerOrderResponse,
   type CustomerOrderDetail,
   type CustomerOrderListItem,
@@ -414,6 +418,7 @@ export function ShopPage() {
   const [selectedOrderId, setSelectedOrderId] = useState<number | null>(null);
   const [commentRating, setCommentRating] = useState(5);
   const [commentContent, setCommentContent] = useState('');
+  const [selectedIdentityIds, setSelectedIdentityIds] = useState<Array<number | ''>>(['']);
 
   const categoriesQuery = useQuery({
     queryKey: ['shop-categories'],
@@ -521,6 +526,12 @@ export function ShopPage() {
     refetchInterval: customerToken && customerUserId ? 10000 : false,
   });
 
+  const identitiesQuery = useQuery({
+    queryKey: ['customer-identities', customerToken],
+    queryFn: () => getCustomerIdentities(customerToken),
+    enabled: Boolean(customerToken),
+  });
+
   useEffect(() => {
     const profile = profileQuery.data;
     if (!profile) return;
@@ -530,6 +541,14 @@ export function ShopPage() {
       alipayBalance: Number(profile.alipayBalance ?? 0),
     });
   }, [profileQuery.data]);
+
+  useEffect(() => {
+    setSelectedIdentityIds((current) => {
+      const next = current.slice(0, quantity);
+      while (next.length < quantity) next.push('');
+      return next.length ? next : [''];
+    });
+  }, [quantity]);
 
   const ordersQuery = useQuery({
     queryKey: ['customer-orders', customerToken, orderStatusFilter],
@@ -574,6 +593,9 @@ export function ShopPage() {
             priceLevelName: selectedPriceLevel.name,
             quantity,
             unitPrice: selectedPriceLevel.price,
+            attendees: selectedIdentityIds.map((identityId) => ({
+              identityId: Number(identityId),
+            })),
           },
         ],
         contactName,
@@ -617,6 +639,36 @@ export function ShopPage() {
     },
   });
 
+  const createIdentityMutation = useMutation({
+    mutationFn: (data: { realName: string; idCardNo: string; phone?: string }) => {
+      if (!customerToken) throw new Error('请先登录客户账号');
+      return createCustomerIdentity(customerToken, data);
+    },
+    onSuccess: () => {
+      toast.success('常用观演人已保存');
+      identitiesQuery.refetch();
+    },
+    onError: (error: any) => {
+      if (handleCustomerAuthExpired(error)) return;
+      toast.error(error?.message || '保存观演人失败');
+    },
+  });
+
+  const deleteIdentityMutation = useMutation({
+    mutationFn: (id: number) => {
+      if (!customerToken) throw new Error('请先登录客户账号');
+      return deleteCustomerIdentity(customerToken, id);
+    },
+    onSuccess: () => {
+      toast.success('常用观演人已删除');
+      identitiesQuery.refetch();
+    },
+    onError: (error: any) => {
+      if (handleCustomerAuthExpired(error)) return;
+      toast.error(error?.message || '删除观演人失败');
+    },
+  });
+
   const reminderMutation = useMutation({
     mutationFn: () => remindTicket(customerToken, selectedTicketId as number),
     onSuccess: () => {
@@ -631,6 +683,7 @@ export function ShopPage() {
 
   const totalAmount = (selectedPriceLevel?.price ?? 0) * quantity;
   const canBuyTicket = detail?.status === 2;
+  const selectedAttendeesValid = selectedIdentityIds.length === quantity && selectedIdentityIds.every(Boolean);
   const canSubmit =
     canBuyTicket &&
     Boolean(customerToken) &&
@@ -639,7 +692,8 @@ export function ShopPage() {
     quantity > 0 &&
     maxQuantity > 0 &&
     contactName.trim().length > 0 &&
-    contactPhone.trim().length > 0;
+    contactPhone.trim().length > 0 &&
+    selectedAttendeesValid;
 
   const selectTicket = (ticket: ShopTicketListItem) => {
     navigate(`/shop/tickets/${ticket.id}`);
@@ -730,6 +784,11 @@ export function ShopPage() {
           customerUserId={customerUserId}
           walletBalances={walletBalances}
           loading={profileQuery.isLoading}
+          identities={identitiesQuery.data ?? []}
+          identityLoading={identitiesQuery.isLoading}
+          identityPending={createIdentityMutation.isPending || deleteIdentityMutation.isPending}
+          onCreateIdentity={(data) => createIdentityMutation.mutate(data)}
+          onDeleteIdentity={(id) => deleteIdentityMutation.mutate(id)}
           onOrders={() => setActiveTab('orders')}
           onLogout={logout}
         />
@@ -798,6 +857,9 @@ export function ShopPage() {
               totalAmount={totalAmount}
               canSubmit={canSubmit}
               canBuyTicket={canBuyTicket}
+              identities={identitiesQuery.data ?? []}
+              selectedIdentityIds={selectedIdentityIds}
+              setSelectedIdentityIds={setSelectedIdentityIds}
               submitPending={orderMutation.isPending}
               onSubmit={() => orderMutation.mutate()}
               latestOrder={latestOrder}
@@ -978,6 +1040,11 @@ function ProfileView({
   customerUserId,
   walletBalances,
   loading,
+  identities,
+  identityLoading,
+  identityPending,
+  onCreateIdentity,
+  onDeleteIdentity,
   onOrders,
   onLogout,
 }: {
@@ -986,11 +1053,34 @@ function ProfileView({
   customerUserId: string | number;
   walletBalances: WalletBalances;
   loading: boolean;
+  identities: CustomerIdentity[];
+  identityLoading: boolean;
+  identityPending: boolean;
+  onCreateIdentity: (data: { realName: string; idCardNo: string; phone?: string }) => void;
+  onDeleteIdentity: (id: number) => void;
   onOrders: () => void;
   onLogout: () => void;
 }) {
   const displayName = profile?.nickname || profile?.username || customerName || '票多星用户';
   const userId = profile?.id || profile?.userId || customerUserId || '-';
+  const [identityName, setIdentityName] = useState('');
+  const [identityNo, setIdentityNo] = useState('');
+  const [identityPhone, setIdentityPhone] = useState('');
+
+  const submitIdentity = () => {
+    if (!identityName.trim() || !identityNo.trim()) {
+      toast.error('请填写观演人姓名和身份证');
+      return;
+    }
+    onCreateIdentity({
+      realName: identityName.trim(),
+      idCardNo: identityNo.trim(),
+      phone: identityPhone.trim() || undefined,
+    });
+    setIdentityName('');
+    setIdentityNo('');
+    setIdentityPhone('');
+  };
 
   return (
     <section className="mx-auto max-w-5xl px-4 py-6">
@@ -1020,6 +1110,39 @@ function ProfileView({
             支付宝余额
           </div>
           <div className="mt-3 text-3xl font-extrabold text-gray-950">{currency(walletBalances.alipayBalance)}</div>
+        </div>
+      </div>
+
+      <div className="mt-4 rounded-lg border border-gray-200 bg-white p-5">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-lg font-extrabold text-gray-950">常用观演人</h2>
+            <p className="mt-1 text-sm text-gray-500">提前保存身份证，购票时可以直接选择。</p>
+          </div>
+          {identityLoading ? <Loader2 className="h-4 w-4 animate-spin text-rose-600" /> : null}
+        </div>
+        <div className="mt-4 grid gap-2 md:grid-cols-[1fr_1.4fr_1fr_auto]">
+          <input value={identityName} onChange={(event) => setIdentityName(event.target.value)} className="h-10 rounded-lg border border-gray-300 px-3 text-sm outline-none focus:border-rose-500 focus:ring-2 focus:ring-rose-100" placeholder="观演人姓名" />
+          <input value={identityNo} onChange={(event) => setIdentityNo(event.target.value)} className="h-10 rounded-lg border border-gray-300 px-3 text-sm outline-none focus:border-rose-500 focus:ring-2 focus:ring-rose-100" placeholder="身份证号" />
+          <input value={identityPhone} onChange={(event) => setIdentityPhone(event.target.value)} className="h-10 rounded-lg border border-gray-300 px-3 text-sm outline-none focus:border-rose-500 focus:ring-2 focus:ring-rose-100" placeholder="手机号可选" />
+          <button type="button" disabled={identityPending} onClick={submitIdentity} className="h-10 rounded-lg bg-rose-600 px-4 text-sm font-semibold text-white hover:bg-rose-700 disabled:opacity-50">
+            保存
+          </button>
+        </div>
+        <div className="mt-4 grid gap-2">
+          {identities.length === 0 ? (
+            <div className="rounded-lg bg-gray-50 p-4 text-sm text-gray-500">暂无常用观演人。</div>
+          ) : identities.map((identity) => (
+            <div key={identity.id} className="flex items-center justify-between rounded-lg border border-gray-100 p-3">
+              <div>
+                <div className="font-semibold text-gray-950">{identity.realName}</div>
+                <div className="text-sm text-gray-500">身份证 {identity.maskedIdCardNo || identity.idCardNo}</div>
+              </div>
+              <button type="button" disabled={identityPending} onClick={() => onDeleteIdentity(identity.id)} className="text-sm font-semibold text-rose-600 hover:text-rose-700 disabled:opacity-50">
+                删除
+              </button>
+            </div>
+          ))}
         </div>
       </div>
 
@@ -1377,6 +1500,9 @@ function CheckoutPanel({
   totalAmount,
   canSubmit,
   canBuyTicket,
+  identities,
+  selectedIdentityIds,
+  setSelectedIdentityIds,
   submitPending,
   onSubmit,
   latestOrder,
@@ -1410,6 +1536,9 @@ function CheckoutPanel({
   totalAmount: number;
   canSubmit: boolean;
   canBuyTicket: boolean;
+  identities: CustomerIdentity[];
+  selectedIdentityIds: Array<number | ''>;
+  setSelectedIdentityIds: (value: Array<number | ''> | ((current: Array<number | ''>) => Array<number | ''>)) => void;
   submitPending: boolean;
   onSubmit: () => void;
   latestOrder: CreateCustomerOrderResponse | null;
@@ -1503,6 +1632,39 @@ function CheckoutPanel({
               <Plus className="h-4 w-4" />
             </button>
           </div>
+        </div>
+        <div className="rounded-lg border border-rose-100 bg-rose-50/60 p-3">
+          <div className="mb-2 flex items-center justify-between">
+            <div>
+              <div className="text-sm font-bold text-gray-900">常用观演人</div>
+              <div className="text-xs text-gray-500">每张票需要选择 1 个身份证，当前需选择 {quantity} 人。</div>
+            </div>
+            {detail.ageLimit ? <span className="rounded bg-white px-2 py-1 text-xs font-semibold text-rose-700">年龄 {detail.ageLimit}</span> : null}
+          </div>
+          {identities.length === 0 ? (
+            <div className="rounded-md bg-white p-3 text-xs text-gray-500">请先到“我的”页面添加常用观演人身份证。</div>
+          ) : (
+            <div className="space-y-2">
+              {selectedIdentityIds.map((identityId, index) => (
+                <select
+                  key={index}
+                  value={identityId}
+                  onChange={(event) => {
+                    const nextValue = event.target.value ? Number(event.target.value) : '';
+                    setSelectedIdentityIds((current) => current.map((value, itemIndex) => (itemIndex === index ? nextValue : value)));
+                  }}
+                  className="h-10 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm outline-none focus:border-rose-500 focus:ring-2 focus:ring-rose-100"
+                >
+                  <option value="">选择第 {index + 1} 位观演人身份证</option>
+                  {identities.map((identity) => (
+                    <option key={identity.id} value={identity.id}>
+                      {identity.realName} · {identity.maskedIdCardNo || identity.idCardNo || '身份证'}
+                    </option>
+                  ))}
+                </select>
+              ))}
+            </div>
+          )}
         </div>
         <div className="grid gap-2">
           <input value={contactName} onChange={(event) => setContactName(event.target.value)} className="h-10 w-full rounded-lg border border-gray-300 px-3 text-sm outline-none focus:border-rose-500 focus:ring-2 focus:ring-rose-100" placeholder="联系人" />
