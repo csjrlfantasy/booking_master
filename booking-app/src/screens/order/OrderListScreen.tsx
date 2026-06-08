@@ -4,6 +4,7 @@
  */
 import React, {useState, useEffect, useCallback} from 'react';
 import {
+  Alert,
   View,
   Text,
   FlatList,
@@ -255,8 +256,25 @@ const OrderListScreen: React.FC = () => {
 
   // 取消订单
   const handleCancel = (order: Order) => {
-    // TODO: 实现取消订单
-    toast.info('取消订单功能开发中');
+    Alert.alert('取消订单', `确定要取消订单 ${order.orderNo} 吗？`, [
+      {text: '再想想', style: 'cancel'},
+      {
+        text: '确认取消',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await orderApi.cancelOrder({
+              orderId: order.id,
+              reason: '用户主动取消',
+            });
+            toast.success('取消成功');
+            await loadOrders(true);
+          } catch (error: any) {
+            toast.error(error?.message || '取消失败');
+          }
+        },
+      },
+    ]);
   };
 
   // 立即支付
