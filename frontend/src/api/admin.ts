@@ -23,6 +23,7 @@ export interface CreateAdminTicketRequest {
   priceMax?: number;
   totalStock?: number;
   status?: number;
+  ageLimit?: string;
   priceLevels?: Array<{
     name: string;
     price: number;
@@ -142,6 +143,7 @@ function normalizeTicket(raw: RawTicket): Ticket {
     availableStock: Number(raw.availableStock ?? raw.remainingTickets ?? 0),
     showDate,
     showTime,
+    ageLimit: raw.ageLimit,
     duration: raw.duration,
     description: raw.description || '',
     notice: raw.notice || raw.attentions || '',
