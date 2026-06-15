@@ -6,6 +6,7 @@ import {createNativeStackNavigator} from '@react-navigation/native-stack';
 import type {ProfileStackParamList} from './types';
 import ProfileScreen from '../screens/profile/ProfileScreen';
 import SettingsScreen from '../screens/profile/SettingsScreen';
+import IdentityScreen from '../screens/profile/IdentityScreen';
 import {Colors, Typography} from '../constants';
 
 // 临时占位页面
@@ -64,6 +65,13 @@ export const ProfileNavigator: React.FC = () => {
         component={() => <PlaceholderScreen title="我的收藏" />}
         options={{
           headerTitle: '我的收藏',
+        }}
+      />
+      <Stack.Screen
+        name="Identity"
+        component={IdentityScreen}
+        options={{
+          headerTitle: '常用观演人',
         }}
       />
       <Stack.Screen
