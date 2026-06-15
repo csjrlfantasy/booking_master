@@ -46,16 +46,41 @@ export interface OrderItem {
 }
 
 export interface CreateOrderParams {
+  ticketId?: string | number;
+  sessionId?: string | number;
   items: CreateOrderItem[];
   couponId?: string;
+  contactName?: string;
+  contactPhone?: string;
+  contactIdCard?: string;
   remark?: string;
+  userRemark?: string;
+  source?: string;
 }
 
 export interface CreateOrderItem {
-  ticketId: string;
-  priceLevelId: string;
+  ticketId?: string | number;
+  priceLevelId: string | number;
+  priceLevelName?: string;
   quantity: number;
+  unitPrice?: number;
   seatCode?: string;
+  attendees?: CreateOrderAttendee[];
+}
+
+export interface CreateOrderAttendee {
+  identityId?: number;
+  realName?: string;
+  idCardNo?: string;
+}
+
+export interface CreateOrderResponse {
+  orderId: number;
+  orderNo: string;
+  totalAmount: number;
+  discountAmount?: number;
+  payAmount: number;
+  expireTime?: string;
 }
 
 export interface OrderListParams {
