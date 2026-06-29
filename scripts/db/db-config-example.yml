@@ -1,0 +1,51 @@
+# 数据库配置说明
+# 请根据实际环境修改以下配置
+
+# ==================== 开发环境 ====================
+# MySQL 8.0
+# 地址: localhost:3306
+# 数据库: booking_db
+# 用户名: root
+# 密码: root (开发环境)
+
+spring:
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://localhost:3306/booking_db?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
+    username: root
+    password: root
+
+# ==================== 测试环境 ====================
+# MySQL 8.0
+# 地址: 192.168.1.100:3306
+# 数据库: booking_db_test
+# 用户名: booking
+# 密码: booking@2026
+
+# spring:
+#   datasource:
+#     driver-class-name: com.mysql.cj.jdbc.Driver
+#     url: jdbc:mysql://192.168.1.100:3306/booking_db_test?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
+#     username: booking
+#     password: booking@2026
+
+# ==================== 生产环境 ====================
+# MySQL 8.0 (主从集群)
+# 主库地址: 10.0.0.1:3306
+# 从库地址: 10.0.0.2:3306
+# 数据库: booking_db_prod
+# 用户名: booking_prod
+# 密码: (使用环境变量或密钥管理服务)
+
+# spring:
+#   datasource:
+#     driver-class-name: com.mysql.cj.jdbc.Driver
+#     url: jdbc:mysql://10.0.0.1:3306/booking_db_prod?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai&useSSL=true&requireSSL=true
+#     username: ${DB_USERNAME}
+#     password: ${DB_PASSWORD}
+#     hikari:
+#       maximum-pool-size: 50
+#       minimum-idle: 10
+#       connection-timeout: 30000
+#       idle-timeout: 600000
+#       max-lifetime: 1800000

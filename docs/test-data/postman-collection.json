@@ -1,0 +1,1076 @@
+{
+  "info": {
+    "name": "票务App用户模块API测试集",
+    "description": "票务App用户模块接口测试用例集",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "version": "1.0.0"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8080",
+      "type": "string"
+    },
+    {
+      "key": "token",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "item": [
+    {
+      "name": "1. 用户注册",
+      "item": [
+        {
+          "name": "TC001 - 正常注册",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('状态码为200', function() {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('响应码为0', function() {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.code).to.eql(0);",
+                  "});",
+                  "pm.test('返回userId', function() {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.data).to.be.a('number');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"username\": \"testuser_new{{$randomInt}}\",\n    \"password\": \"Pass1234\",\n    \"phone\": \"139{{$randomInt}}\",\n    \"email\": \"test{{$randomInt}}@example.com\",\n    \"nickname\": \"测试用户\",\n    \"source\": \"app\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/user/register",
+              "protocol": "http",
+              "host": ["localhost:8080"],
+              "path": ["api", "user", "register"]
+            }
+          }
+        },
+        {
+          "name": "TC002 - 用户名已存在",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('响应码为100101(用户名已存在)', function() {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.code).to.eql(100101);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"username\": \"testuser001\",\n    \"password\": \"Pass1234\",\n    \"phone\": \"13900000099\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/user/register",
+              "protocol": "http",
+              "host": ["localhost:8080"],
+              "path": ["api", "user", "register"]
+            }
+          }
+        },
+        {
+          "name": "TC003 - 手机号已注册",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('响应码为100104(手机号已注册)', function() {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.code).to.eql(100104);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"username\": \"newuser_test\",\n    \"password\": \"Pass1234\",\n    \"phone\": \"13800000001\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/user/register",
+              "protocol": "http",
+              "host": ["localhost:8080"],
+              "path": ["api", "user", "register"]
+            }
+          }
+        },
+        {
+          "name": "TC004 - 邮箱格式错误",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('参数校验失败', function() {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.code).to.not.eql(0);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"username\": \"newuser_test\",\n    \"password\": \"Pass1234\",\n    \"phone\": \"13900000010\",\n    \"email\": \"invalid-email\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/user/register",
+              "protocol": "http",
+              "host": ["localhost:8080"],
+              "path": ["api", "user", "register"]
+            }
+          }
+        },
+        {
+          "name": "TC005 - 密码为空",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('密码为空校验', function() {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.code).to.not.eql(0);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"username\": \"newuser_test\",\n    \"password\": \"\",\n    \"phone\": \"13900000011\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/user/register",
+              "protocol": "http",
+              "host": ["localhost:8080"],
+              "path": ["api", "user", "register"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. 用户登录",
+      "item": [
+        {
+          "name": "TC007 - 正常登录",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('状态码为200', function() {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('响应码为0', function() {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.code).to.eql(0);",
+                  "});",
+                  "pm.test('返回token', function() {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.data).to.have.property('token');",
+                  "    pm.collectionVariables.set('token', jsonData.data.token);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"username\": \"testuser001\",\n    \"password\": \"Pass1234\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/user/login",
+              "protocol": "http",
+              "host": ["localhost:8080"],
+              "path": ["api", "user", "login"]
+            }
+          }
+        },
+        {
+          "name": "TC008 - 用户名不存在",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('响应码为100100(用户不存在)', function() {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.code).to.eql(100100);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"username\": \"nonexistent\",\n    \"password\": \"Pass1234\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/user/login",
+              "protocol": "http",
+              "host": ["localhost:8080"],
+              "path": ["api", "user", "login"]
+            }
+          }
+        },
+        {
+          "name": "TC009 - 密码错误",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('响应码为100103(密码错误)', function() {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.code).to.eql(100103);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"username\": \"testuser001\",\n    \"password\": \"WrongPassword\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/user/login",
+              "protocol": "http",
+              "host": ["localhost:8080"],
+              "path": ["api", "user", "login"]
+            }
+          }
+        },
+        {
+          "name": "TC010 - 连续失败5次账户锁定",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('连续失败后账户锁定', function() {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.code).to.eql(100110);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"username\": \"testuser001\",\n    \"password\": \"WrongPassword\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/user/login",
+              "protocol": "http",
+              "host": ["localhost:8080"],
+              "path": ["api", "user", "login"]
+            }
+          }
+        },
+        {
+          "name": "TC012 - 用户已禁用",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('响应码为100102(用户已禁用)', function() {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.code).to.eql(100102);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"username\": \"testuser004\",\n    \"password\": \"Pass1234\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/user/login",
+              "protocol": "http",
+              "host": ["localhost:8080"],
+              "path": ["api", "user", "login"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. 获取用户信息",
+      "item": [
+        {
+          "name": "TC013 - 正常获取用户信息",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('状态码为200', function() {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('响应码为0', function() {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.code).to.eql(0);",
+                  "});",
+                  "pm.test('返回用户信息', function() {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.data).to.have.property('userId');",
+                  "    pm.expect(jsonData.data).to.have.property('username');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/user/1",
+              "protocol": "http",
+              "host": ["localhost:8080"],
+              "path": ["api", "user", "1"]
+            }
+          }
+        },
+        {
+          "name": "TC014 - 用户ID不存在",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('响应码为100100(用户不存在)', function() {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.code).to.eql(100100);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/user/99999",
+              "protocol": "http",
+              "host": ["localhost:8080"],
+              "path": ["api", "user", "99999"]
+            }
+          }
+        },
+        {
+          "name": "TC015 - 未登录访问",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  " P0test('状态码为401', function() {",
+                  "    pm.response.to.have.status(401);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/user/1",
+              "protocol": "http",
+              "host": ["localhost:8080"],
+              "path": ["api", "user", "1"]
+            }
+          }
+        },
+        {
+          "name": "TC016 - Token无效",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('状态码为401', function() {",
+                  "    pm.response.to.have.status(401);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer invalid_token"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/user/1",
+              "protocol": "http",
+              "host": ["localhost:8080"],
+              "path": ["api", "user", "1"]
+            }
+          }
+        },
+        {
+          "name": "TC018 - 根据用户名获取用户信息",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('响应码为0', function() {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.code).to.eql(0);",
+                  "});",
+                  "pm.test('返回正确的用户', function() {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.data.username).to.eql('testuser001');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/user/username/testuser001",
+              "protocol": "http",
+              "host": ["localhost:8080"],
+              "path": ["api", "user", "username", "testuser001"]
+            }
+          }
+        },
+        {
+          "name": "TC019 - 用户名不存在",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('响应码为100100(用户不存在)', function() {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.code).to.eql(100100);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/user/username/nonexistent",
+              "protocol": "http",
+              "host": ["localhost:8080"],
+              "path": ["api", "user", "username", "nonexistent"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. 安全测试",
+      "item": [
+        {
+          "name": "TC020 - SQL注入攻击",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('SQL注入被防御', function() {",
+                  "    var jsonData = pm.response.json();",
+                  "    // SQL注入应该被拒绝或返回错误",
+                  "    pm.expect(jsonData.code).to.not.eql(0) || pm.response.to.have.status(400);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"username\": \"admin' OR '1'='1\",\n    \"password\": \"anything\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/user/login",
+              "protocol": "http",
+              "host": ["localhost:8080"],
+              "path": ["api", "user", "login"]
+            }
+          }
+        },
+        {
+          "name": "TC021 - XSS攻击",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('XSS攻击被过滤', function() {",
+                  "    var jsonData = pm.response.json();",
+                  "    // 验证返回数据中特殊字符被转义",
+                  "    if (jsonData.code === 0) {",
+                  "        pm.expect(jsonData.data.nickname || '').to.not.include('<script>');",
+                  "    }",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"username\": \"xssuser\",\n    \"password\": \"Pass1234\",\n    \"phone\": \"13900000099\",\n    \"nickname\": \"<script>alert('XSS')</script>\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/user/register",
+              "protocol": "http",
+              "host": ["localhost:8080"],
+              "path": ["api", "user", "register"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. 票务列表",
+      "item": [
+        {
+          "name": "TC1001 - 正常分页查询",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('状态码为200', function() {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('响应码为0', function() {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.code).to.eql(0);",
+                  "});",
+                  "pm.test('返回分页数据', function() {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.data).to.have.property('list');",
+                  "    pm.expect(jsonData.data).to.have.property('total');",
+                  "    pm.expect(jsonData.data).to.have.property('pageNum');",
+                  "    pm.expect(jsonData.data).to.have.property('pageSize');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/ticket/list?pageNum=1&pageSize=20",
+              "protocol": "http",
+              "host": ["localhost:8080"],
+              "path": ["ticket", "list"],
+              "query": [
+                {"key": "pageNum", "value": "1"},
+                {"key": "pageSize", "value": "20"}
+              ]
+            }
+          }
+        },
+        {
+          "name": "TC1002 - 按分类筛选",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('响应码为0', function() {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.code).to.eql(0);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/ticket/list?categoryId=1",
+              "protocol": "http",
+              "host": ["localhost:8080"],
+              "path": ["ticket", "list"],
+              "query": [
+                {"key": "categoryId", "value": "1"}
+              ]
+            }
+          }
+        },
+        {
+          "name": "TC1003 - 按关键字搜索",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('响应码为0', function() {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.code).to.eql(0);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/ticket/list?keyword=周杰伦",
+              "protocol": "http",
+              "host": ["localhost:8080"],
+              "path": ["ticket", "list"],
+              "query": [
+                {"key": "keyword", "value": "周杰伦"}
+              ]
+            }
+          }
+        },
+        {
+          "name": "TC1004 - 按城市筛选",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('响应码为0', function() {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.code).to.eql(0);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/ticket/list?city=上海",
+              "protocol": "http",
+              "host": ["localhost:8080"],
+              "path": ["ticket", "list"],
+              "query": [
+                {"key": "city", "value": "上海"}
+              ]
+            }
+          }
+        },
+        {
+          "name": "TC1005 - 按日期范围筛选",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('响应码为0', function() {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.code).to.eql(0);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/ticket/list?startDate=2026-04-01&endDate=2026-12-31",
+              "protocol": "http",
+              "host": ["localhost:8080"],
+              "path": ["ticket", "list"],
+              "query": [
+                {"key": "startDate", "value": "2026-04-01"},
+                {"key": "endDate", "value": "2026-12-31"}
+              ]
+            }
+          }
+        },
+        {
+          "name": "TC1006 - 综合筛选",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('响应码为0', function() {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.code).to.eql(0);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/ticket/list?categoryId=1&city=上海&keyword=演唱会",
+              "protocol": "http",
+              "host": ["localhost:8080"],
+              "path": ["ticket", "list"],
+              "query": [
+                {"key": "categoryId", "value": "1"},
+                {"key": "city", "value": "上海"},
+                {"key": "keyword", "value": "演唱会"}
+              ]
+            }
+          }
+        },
+        {
+          "name": "TC1007 - 自定义排序",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('响应码为0', function() {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.code).to.eql(0);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/ticket/list?sortBy=sales&sortOrder=desc",
+              "protocol": "http",
+              "host": ["localhost:8080"],
+              "path": ["ticket", "list"],
+              "query": [
+                {"key": "sortBy", "value": "sales"},
+                {"key": "sortOrder", "value": "desc"}
+              ]
+            }
+          }
+        },
+        {
+          "name": "TC1008 - 空结果集",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('返回空列表', function() {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.code).to.eql(0);",
+                  "    pm.expect(jsonData.data.list).to.be.an('array');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/ticket/list?categoryId=99999",
+              "protocol": "http",
+              "host": ["localhost:8080"],
+              "path": ["ticket", "list"],
+              "query": [
+                {"key": "categoryId", "value": "99999"}
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. 票务详情",
+      "item": [
+        {
+          "name": "TC1009 - 正常获取详情",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('状态码为200', function() {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('响应码为0', function() {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.code).to.eql(0);",
+                  "});",
+                  "pm.test('返回票务详情', function() {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.data).to.have.property('ticketId');",
+                  "    pm.expect(jsonData.data).to.have.property('name');",
+                  "    pm.expect(jsonData.data).to.have.property('venueName');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/ticket/1",
+              "protocol": "http",
+              "host": ["localhost:8080"],
+              "path": ["ticket", "1"]
+            }
+          }
+        },
+        {
+          "name": "TC3004 - ticketId不存在",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('票务不存在', function() {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.code).to.not.eql(0);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/ticket/99999",
+              "protocol": "http",
+              "host": ["localhost:8080"],
+              "path": ["ticket", "99999"]
+            }
+          }
+        },
+        {
+          "name": "TC2005 - ticketId类型错误",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('参数类型错误', function() {",
+                  "    pm.response.to.have.status(400);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/ticket/abc",
+              "protocol": "http",
+              "host": ["localhost:8080"],
+              "path": ["ticket", "abc"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "7. 场次列表",
+      "item": [
+        {
+          "name": "TC1011 - 正常获取场次",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('状态码为200', function() {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('响应码为0', function() {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.code).to.eql(0);",
+                  "});",
+                  "pm.test('返回场次数组', function() {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.data).to.be.an('array');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/ticket/1/sessions",
+              "protocol": "http",
+              "host": ["localhost:8080"],
+              "path": ["ticket", "1", "sessions"]
+            }
+          }
+        },
+        {
+          "name": "TC3006 - ticketId不存在",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('票务不存在返回空', function() {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.data).to.be.an('array');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/ticket/99999/sessions",
+              "protocol": "http",
+              "host": ["localhost:8080"],
+              "path": ["ticket", "99999", "sessions"]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

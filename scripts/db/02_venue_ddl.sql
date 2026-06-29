@@ -1,0 +1,135 @@
+-- ================================================
+-- 票务App数据库 - 场馆模块 DDL
+-- 创建时间: 2026-04-09
+-- ================================================
+
+USE `booking_db`;
+
+-- 场馆表
+CREATE TABLE IF NOT EXISTS `venue` (
+    `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '场馆ID',
+    `name` VARCHAR(100) NOT NULL COMMENT '场馆名称',
+    `english_name` VARCHAR(100) DEFAULT NULL COMMENT '英文名称',
+    `category_id` INT NOT NULL COMMENT '场馆分类ID',
+    `category_name` VARCHAR(50) NOT NULL COMMENT '场馆分类名称',
+    `province` VARCHAR(20) NOT NULL COMMENT '省份',
+    `city` VARCHAR(20) NOT NULL COMMENT '城市',
+    `district` VARCHAR(20) DEFAULT NULL COMMENT '区县',
+    `address` VARCHAR(255) NOT NULL COMMENT '详细地址',
+    `longitude` DECIMAL(10,6) DEFAULT NULL COMMENT '经度',
+    `latitude` DECIMAL(10,6) DEFAULT NULL COMMENT '纬度',
+    `description` TEXT COMMENT '场馆描述',
+    `facilities` JSON DEFAULT NULL COMMENT '设施信息: 停车场、无障碍通道等',
+    `traffic_info` TEXT COMMENT '交通信息',
+    `business_hours` VARCHAR(255) DEFAULT NULL COMMENT '营业时间',
+    `contact_phone` VARCHAR(20) DEFAULT NULL COMMENT '联系电话',
+    `cover_image` VARCHAR(255) NOT NULL COMMENT '封面图',
+    `images` JSON DEFAULT NULL COMMENT '图片集',
+    `status` TINYINT NOT NULL DEFAULT 1 COMMENT '状态: 0-下架, 1-上架, 2-维护中',
+    `rating` DECIMAL(2,1) DEFAULT 5.0 COMMENT '评分',
+    `review_count` INT DEFAULT 0 COMMENT '评论数',
+    `sort_order` INT DEFAULT 0 COMMENT '排序',
+    `tags` JSON DEFAULT NULL COMMENT '标签',
+    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    `deleted_at` DATETIME DEFAULT NULL COMMENT '删除时间',
+    PRIMARY KEY (`id`),
+    KEY `idx_category_id` (`category_id`),
+    KEY `idx_status` (`status`),
+    KEY `idx_city` (`province`, `city`),
+    KEY `idx_rating` (`rating`),
+    KEY `idx_sort_order` (`sort_order`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='场馆表';
+
+-- 场馆座位图配置表
+CREATE TABLE IF NOT EXISTS `venue_seat_map` (
+    `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+    `venue_id` BIGINT UNSIGNED NOT NULL COMMENT '场馆ID',
+    `venue_name` VARCHAR(100) NOT NULL COMMENT '场馆名称',
+    `map_name` VARCHAR(100) NOT NULL COMMENT '座位图名称',
+    `map_type` TINYINT NOT NULL DEFAULT 1 COMMENT '座位图类型: 1-平面图, 2-3D图',
+    `svg_content` LONGTEXT COMMENT 'SVG矢量座位图内容',
+    `background_image` VARCHAR(500) DEFAULT NULL COMMENT '座位图背景图片URL',
+    `canvas_width` INT NOT NULL DEFAULT 1200 COMMENT '画布宽度',
+    `canvas_height` INT NOT NULL DEFAULT 800 COMMENT '画布高度',
+    `scale_min` DECIMAL(4,2) DEFAULT 0.5 COMMENT '最小缩放比例',
+    `scale_max` DECIMAL(4,2) DEFAULT 3.0 COMMENT '最大缩放比例',
+    `stage_position` JSON DEFAULT NULL COMMENT '舞台位置信息: {x, y, width, height, rotation}',
+    `version` INT DEFAULT 1 COMMENT '版本号',
+    `status` TINYINT NOT NULL DEFAULT 1 COMMENT '状态: 0-禁用, 1-启用',
+    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    PRIMARY KEY (`id`),
+    KEY `idx_venue_id` (`venue_id`),
+    KEY `idx_status` (`status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='场馆座位图配置表';
+
+-- 场馆区域表
+CREATE TABLE IF NOT EXISTS `venue_area` (
+    `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '区域ID',
+    `venue_id` BIGINT UNSIGNED NOT NULL COMMENT '场馆ID',
+    `venue_seat_map_id` BIGINT UNSIGNED DEFAULT NULL COMMENT '座位图ID',
+    `area_code` VARCHAR(20) NOT NULL COMMENT '区域代码: VIP/A/B/C等',
+    `area_name` VARCHAR(100) NOT NULL COMMENT '区域名称: VIP区/主席台/A区',
+    `price_level_id` BIGINT UNSIGNED DEFAULT NULL COMMENT '关联票档ID',
+    `price` DECIMAL(10,2) DEFAULT NULL COMMENT '区域默认价格',
+    `row_start` INT NOT NULL COMMENT '起始排号',
+    `row_end` INT NOT NULL COMMENT '结束排号',
+    `col_start` INT NOT NULL COMMENT '起始座号',
+    `col_end` INT NOT NULL COMMENT '结束座号',
+    `row_count` INT NOT NULL COMMENT '总排数',
+    `col_count` INT NOT NULL COMMENT '每排座位数',
+    `total_seats` INT NOT NULL COMMENT '总座位数',
+    `shape_type` TINYINT DEFAULT 1 COMMENT '形状类型: 1-矩形, 2-弧形, 3-自定义多边形',
+    `boundary_path` JSON DEFAULT NULL COMMENT '区域边界路径(用于非矩形区域)',
+    `fill_color` VARCHAR(20) DEFAULT NULL COMMENT '区域填充颜色',
+    `border_color` VARCHAR(20) DEFAULT NULL COMMENT '区域边框颜色',
+    `font_size` INT DEFAULT 12 COMMENT '区域名称字体大小',
+    `label_position` JSON DEFAULT NULL COMMENT '区域标签位置: {x, y}',
+    `sort_order` INT DEFAULT 0 COMMENT '排序',
+    `status` TINYINT NOT NULL DEFAULT 1 COMMENT '状态: 0-不可用, 1-可用',
+    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    PRIMARY KEY (`id`),
+    KEY `idx_venue_id` (`venue_id`),
+    KEY `idx_price_level_id` (`price_level_id`),
+    KEY `idx_status` (`status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='场馆区域表';
+
+-- 座位表
+CREATE TABLE IF NOT EXISTS `seat` (
+    `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '座位ID',
+    `session_id` BIGINT UNSIGNED NOT NULL COMMENT '场次ID',
+    `venue_area_id` BIGINT UNSIGNED NOT NULL COMMENT '场馆区域ID',
+    `venue_id` BIGINT UNSIGNED NOT NULL COMMENT '场馆ID',
+    `area_name` VARCHAR(50) NOT NULL COMMENT '区域名称',
+    `seat_no` VARCHAR(50) NOT NULL COMMENT '座位编号: 如A区-1排-10座',
+    `seat_row` VARCHAR(10) NOT NULL COMMENT '排号',
+    `seat_col` VARCHAR(10) NOT NULL COMMENT '座号',
+    `price_level_id` BIGINT UNSIGNED NOT NULL COMMENT '票档ID',
+    `price` DECIMAL(10,2) NOT NULL COMMENT '实际价格',
+    `coordinate_x` DECIMAL(10,2) NOT NULL COMMENT '座位X坐标(像素)',
+    `coordinate_y` DECIMAL(10,2) NOT NULL COMMENT '座位Y坐标(像素)',
+    `coordinate_z` DECIMAL(10,2) DEFAULT 0 COMMENT '座位Z坐标(3D偏移)',
+    `seat_width` INT DEFAULT 30 COMMENT '座位宽度(像素)',
+    `seat_height` INT DEFAULT 30 COMMENT '座位高度(像素)',
+    `rotation` DECIMAL(5,2) DEFAULT 0 COMMENT '座位旋转角度',
+    `status` TINYINT NOT NULL DEFAULT 1 COMMENT '状态: 0-不可售, 1-可选, 2-锁定, 3-已预订, 4-已售出',
+    `lock_expire_time` DATETIME DEFAULT NULL COMMENT '锁定过期时间',
+    `lock_user_id` BIGINT UNSIGNED DEFAULT NULL COMMENT '锁定用户ID',
+    `lock_session_id` VARCHAR(64) DEFAULT NULL COMMENT '锁定会话ID',
+    `order_id` BIGINT UNSIGNED DEFAULT NULL COMMENT '订单ID',
+    `lock_reason` VARCHAR(100) DEFAULT NULL COMMENT '锁定原因: user_lock/system_lock',
+    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_session_seat` (`session_id`, `seat_no`),
+    UNIQUE KEY `uk_session_coordinate` (`session_id`, `coordinate_x`, `coordinate_y`),
+    KEY `idx_session_id` (`session_id`),
+    KEY `idx_venue_area_id` (`venue_area_id`),
+    KEY `idx_price_level_id` (`price_level_id`),
+    KEY `idx_status` (`status`),
+    KEY `idx_lock_expire` (`lock_expire_time`),
+    KEY `idx_lock_user` (`lock_user_id`),
+    KEY `idx_row_col` (`seat_row`, `seat_col`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='座位表';

@@ -1,0 +1,652 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>软件测试面试 —— 20大行业·功能模块测试点·思维导图</title>
+<style>
+:root {
+  --bg:#0f1119; --card:#161822; --border:#252836;
+  --t1:#ff6b6b; --t2:#4ecdc4; --t3:#ffe66d; --t4:#a37eba; --t5:#6bc5ff; --t6:#ff9f43;
+  --text:#d0d0d8; --sub:#8888a0; --root:#e94560;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--text);font-family:'PingFang SC','Microsoft YaHei','Segoe UI',sans-serif;overflow-x:hidden}
+
+/* header */
+.header{text-align:center;padding:22px 16px 8px}
+.header h1{font-size:1.8rem;background:linear-gradient(135deg,var(--root),#f0c040);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.header p{color:var(--sub);font-size:.85rem;margin-top:4px}
+
+/* nav bar */
+.nav-bar{display:flex;justify-content:center;flex-wrap:wrap;gap:6px;padding:12px 16px 8px;position:sticky;top:0;z-index:10;background:rgba(15,17,25,.92);backdrop-filter:blur(8px)}
+.nav-bar button{padding:6px 13px;border-radius:18px;border:1px solid var(--border);background:var(--card);color:var(--sub);font-size:.78rem;cursor:pointer;transition:all .2s;white-space:nowrap}
+.nav-bar button:hover{border-color:var(--root);color:#fff}
+.nav-bar button.active{background:var(--root);border-color:var(--root);color:#fff;font-weight:700;box-shadow:0 0 16px rgba(233,69,96,.35)}
+
+/* pagination */
+.pagination{display:flex;justify-content:center;align-items:center;gap:8px;padding:6px 0}
+.pagination button{width:32px;height:32px;border-radius:50%;border:1px solid var(--border);background:var(--card);color:var(--sub);cursor:pointer;font-size:.8rem;transition:all .2s}
+.pagination button.active{background:var(--root);border-color:var(--root);color:#fff}
+.pagination button:hover:not(.active){border-color:var(--root)}
+.pagination .arrow{font-size:1rem;border:none;background:transparent;color:var(--sub);cursor:pointer;padding:4px 8px}
+.pagination .arrow:hover{color:#fff}
+.pagination .arrow:disabled{opacity:.3;cursor:not-allowed}
+
+/* page */
+.page{display:none;padding:6px 24px 40px;animation:fadeIn .35s ease}
+.page.active{display:block}
+@keyframes fadeIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+
+/* === MIND MAP === */
+.mind-map{display:flex;align-items:flex-start;gap:0;overflow-x:auto;padding:10px 0;min-width:fit-content}
+
+/* ROOT NODE */
+.root-node{flex-shrink:0;display:flex;flex-direction:column;align-items:center;justify-content:center;width:100px;min-height:140px;background:linear-gradient(135deg,var(--root),#c0392b);border-radius:16px;padding:16px 10px;text-align:center;color:#fff;font-weight:700;font-size:1rem;box-shadow:0 6px 30px rgba(233,69,96,.3);position:relative;z-index:2;writing-mode:vertical-rl;letter-spacing:3px}
+.root-node .icon{font-size:1.6rem;writing-mode:horizontal-tb;margin-bottom:4px}
+
+/* LEVELS CONTAINER */
+.levels-container{flex:1;display:flex;flex-direction:column;gap:28px;padding-left:8px}
+
+/* One module row */
+.module-row{display:flex;align-items:flex-start;gap:0;position:relative}
+.module-row::before{content:'';position:absolute;left:-8px;top:18px;width:16px;height:2px;background:var(--border);border-radius:2px}
+
+/* MODULE NODE (L1) */
+.mod-node{flex-shrink:0;width:90px;min-height:50px;display:flex;align-items:center;justify-content:center;text-align:center;border-radius:10px;padding:8px 6px;font-weight:700;font-size:.8rem;color:#fff;position:relative;z-index:1}
+.mod-node.m1{background:var(--t1)} .mod-node.m2{background:var(--t2)} .mod-node.m3{background:var(--t3);color:#1a1a2e} .mod-node.m4{background:var(--t4)} .mod-node.m5{background:var(--t5)} .mod-node.m6{background:var(--t6)}
+
+/* Category group */
+.cat-group{display:flex;flex-direction:column;gap:4px;padding-left:14px;position:relative;flex:1}
+.cat-group::before{content:'';position:absolute;left:0;top:10px;width:14px;height:2px;background:var(--border);border-radius:2px}
+
+.cat-row{display:flex;align-items:flex-start;gap:0;position:relative;flex-wrap:wrap}
+.cat-row::before{content:'';position:absolute;left:-14px;top:9px;width:14px;height:2px;background:var(--border);border-radius:2px}
+
+.cat-label{flex-shrink:0;font-size:.7rem;color:var(--sub);padding:4px 8px 4px 0;width:55px;text-align:right;font-weight:600;line-height:1.3}
+
+.leaf-cluster{display:flex;flex-wrap:wrap;gap:3px 5px;padding:2px 0 2px 10px;position:relative}
+.leaf-cluster::before{content:'';position:absolute;left:0;top:9px;width:10px;height:2px;background:var(--border);border-radius:2px}
+
+.leaf{font-size:.7rem;color:#b0b0c0;padding:3px 8px;background:rgba(255,255,255,.03);border-radius:4px;white-space:nowrap;transition:all .2s;cursor:default;border:1px solid transparent}
+.leaf:hover{color:#fff;background:rgba(255,255,255,.07);border-color:var(--border)}
+.leaf.crit{color:#ff6b6b;font-weight:600;background:rgba(255,107,107,.08)}
+.leaf.crit::before{content:'★ ';font-size:.6rem}
+
+/* connecting vertical lines */
+.module-row .vert-line{position:absolute;left:-8px;top:18px;bottom:0;width:2px;background:var(--border);border-radius:2px}
+
+/* legend */
+.legend{display:flex;justify-content:center;gap:16px;padding:12px;flex-wrap:wrap;font-size:.72rem;color:var(--sub)}
+.legend span{display:flex;align-items:center;gap:5px}
+.legend .dot{width:8px;height:8px;border-radius:50%}
+.legend .crit-dot{width:8px;height:8px;border-radius:50%;background:#ff6b6b}
+
+/* page info */
+.page-info{text-align:center;padding:0 0 10px;font-size:.85rem;color:var(--sub)}
+.page-info b{color:var(--root)}
+
+/* responsive */
+@media(max-width:768px){
+  .mind-map{flex-direction:column;align-items:center}
+  .root-node{writing-mode:horizontal-tb;width:auto;min-height:auto;padding:14px 24px;letter-spacing:1px}
+  .module-row{flex-wrap:wrap}
+  .mod-node{width:70px;font-size:.7rem}
+}
+@media print{
+  body{background:#fff;color:#000}
+  .page{display:block!important;page-break-after:always}
+  .nav-bar,.pagination{display:none}
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>🧠 20大行业 · 功能模块测试点 · 思维导图</h1>
+  <p>按行业分类 · 面试速记 · 键盘 ← → 翻页 &nbsp;|&nbsp; ★ 红色 = P0必测核心点</p>
+</div>
+
+<div class="nav-bar" id="navBar"></div>
+<div class="pagination" id="pagination"></div>
+<div id="pagesContainer"></div>
+<div class="legend">
+  <span><span class="crit-dot"></span> P0核心必测</span>
+  <span>每行业展开4-6个核心模块</span>
+  <span>每个模块展开2-4类测试点</span>
+</div>
+
+<script>
+// ==================== 20 INDUSTRIES DATA ====================
+const COLORS = ['m1','m2','m3','m4','m5','m6'];
+
+const industries = [
+  // ====== 1 ======
+  {
+    name:'电商', icon:'🛍️', modules:[
+      { name:'商品搜索', cats:[
+        {label:'功能',leaves:['关键词搜索','分类筛选','价格区间筛选','品牌筛选','排序(综合/销量/价格)','搜索历史']},
+        {label:'异常',leaves:['空关键词','特殊字符','SQL注入',{t:'超长关键词(500字)',crit:true},'无结果提示']},
+        {label:'性能',leaves:[{t:'响应时间<3s',crit:true},'高并发搜索','模糊搜索准确性','拼音搜索']}
+      ]},
+      { name:'购物车', cats:[
+        {label:'增删改',leaves:[{t:'添加商品',crit:true},'修改数量','删除/批量删除','清空购物车','移入收藏']},
+        {label:'一致性',leaves:[{t:'库存联动(售罄灰显)',crit:true},{t:'价格变动同步',crit:true},'下架商品提示','未登录加购→登录合并']},
+        {label:'结算',leaves:[{t:'总价计算(含优惠)',crit:true},'优惠券分摊','运费计算','满减叠加','数量不能超库存']}
+      ]},
+      { name:'订单', cats:[
+        {label:'流程',leaves:[{t:'创建订单',crit:true},'订单号唯一','地址校验','发票信息']},
+        {label:'状态机',leaves:[{t:'待付→已付→已发→已完成',crit:true},{t:'取消(各状态)',crit:true},'退款→已退款','非法状态拦截']},
+        {label:'超时',leaves:[{t:'待付超时自动取消',crit:true},'库存回补','优惠券退回','14:59 vs 15:00边界']}
+      ]},
+      { name:'支付', cats:[
+        {label:'支付流程',leaves:[{t:'支付宝/微信/银行卡',crit:true},'指纹/面容支付','支付密码验证']},
+        {label:'安全',leaves:[{t:'幂等(重复支付)',crit:true},{t:'金额篡改',crit:true},{t:'回调签名验证',crit:true},'支付信息加密']},
+        {label:'退款',leaves:[{t:'全额/部分退款',crit:true},'退款到账时间','重复退款拦截','已消费不可退']}
+      ]},
+      { name:'促销/秒杀', cats:[
+        {label:'秒杀',leaves:[{t:'时间窗口(start/end±1s)',crit:true},{t:'库存不超卖',crit:true},'限购每人1件','并发抢最后1件']},
+        {label:'优惠券',leaves:[{t:'满减/折扣/立减',crit:true},'叠加互斥(选最优)','有效期','限量领取','退券逻辑']}
+      ]}
+    ]
+  },
+  // ====== 2 ======
+  {
+    name:'金融/银行', icon:'🏦', modules:[
+      { name:'转账', cats:[
+        {label:'功能',leaves:[{t:'同行/跨行转账',crit:true},'实时/普通/加急','附言/备注']},
+        {label:'限额',leaves:[{t:'单笔限额(0.01~50000)',crit:true},{t:'日累计限额20万',crit:true},'维护窗口降额(23-01点)','大额二次确认(>1万)']},
+        {label:'手续费',leaves:[{t:'同行免费',crit:true},'跨行阶梯(2/5/10元)','加急附加费','边界(5000.00→2元/5000.01→5元)']},
+        {label:'安全',leaves:[{t:'双因素认证',crit:true},'交易密码','短信验证码(5分钟/日限10次)','收款账户状态校验']}
+      ]},
+      { name:'理财/基金', cats:[
+        {label:'购买',leaves:[{t:'风险测评(强制)',crit:true},'起购金额','T+1确认','收益计算']},
+        {label:'赎回',leaves:[{t:'赎回手续费率',crit:true},'快速赎回(限额1万)','普通赎回(T+1~T+3)','巨额赎回处理']}
+      ]},
+      { name:'信用卡', cats:[
+        {label:'还款',leaves:[{t:'本期应还/最低还款',crit:true},'自动还款','逾期罚息计算','溢缴款处理']},
+        {label:'账单',leaves:[{t:'账单日/还款日',crit:true},'未出账单','已出账单','分期计算']}
+      ]},
+      { name:'风控', cats:[
+        {label:'规则',leaves:[{t:'异地登录拦截',crit:true},{t:'异常交易拦截(深夜大额)',crit:true},'频繁操作限流','设备指纹']},
+        {label:'验证',leaves:[{t:'人脸识别',crit:true},'短信验证','U盾/密码器','反洗钱(AML)']}
+      ]}
+    ]
+  },
+  // ====== 3 ======
+  {
+    name:'社交媒体', icon:'📱', modules:[
+      { name:'动态发布', cats:[
+        {label:'发布',leaves:[{t:'文字/图片/视频',crit:true},'@提及','话题标签','位置标记','可见范围(公开/好友/私密)']},
+        {label:'审核',leaves:[{t:'敏感词过滤',crit:true},{t:'图片鉴黄',crit:true},'违禁内容拦截','先审后发/先发后审']},
+        {label:'交互',leaves:[{t:'点赞/取消赞',crit:true},'评论/回复/删除','转发/引用转发','收藏']}
+      ]},
+      { name:'好友/关注', cats:[
+        {label:'关系',leaves:[{t:'关注/取关',crit:true},'好友申请/通过/拒绝','拉黑/解除','双向/单向关系']},
+        {label:'推荐',leaves:[{t:'你可能认识的人',crit:true},'通讯录导入','共同好友数','推荐理由展示']}
+      ]},
+      { name:'私信/IM', cats:[
+        {label:'收发',leaves:[{t:'文本/图片/语音',crit:true},{t:'消息送达/已读状态',crit:true},'表情/贴纸','消息撤回(2分钟)']},
+        {label:'实时',leaves:[{t:'延迟<2s',crit:true},{t:'消息不乱序不丢失',crit:true},'断网重连补推','WebSocket心跳']}
+      ]},
+      { name:'内容推荐', cats:[
+        {label:'Feed',leaves:[{t:'刷新推荐流',crit:true},'算法推荐vs时间序','多样性(不全是同类型)','广告插入频率']},
+        {label:'去重',leaves:[{t:'不重复推荐已看过',crit:true},'已互动内容降权','负反馈(不感兴趣)']}
+      ]}
+    ]
+  },
+  // ====== 4 ======
+  {
+    name:'在线教育', icon:'📚', modules:[
+      { name:'课程购买', cats:[
+        {label:'下单',leaves:[{t:'课程详情→下单→支付',crit:true},'优惠券/限时折扣','拼团购买','试看后购买']},
+        {label:'退款',leaves:[{t:'7天无理由(未学完<3节)',crit:true},'过期课程不可退','部分退款按比例']}
+      ]},
+      { name:'直播上课', cats:[
+        {label:'直播',leaves:[{t:'推流/拉流稳定性',crit:true},'延迟<3s','卡顿自动降码率','回放生成']},
+        {label:'互动',leaves:[{t:'弹幕/聊天',crit:true},'连麦/举手','答题器/投票','礼物/点赞']}
+      ]},
+      { name:'题库/考试', cats:[
+        {label:'刷题',leaves:[{t:'题型(单选/多选/判断/填空)',crit:true},'收藏/错题本','做题记录/进度','解析查看']},
+        {label:'考试',leaves:[{t:'倒计时自动交卷',crit:true},{t:'切屏防作弊(>3次强制交卷)',crit:true},'30分钟内不可提前交卷','自动评分/人工阅卷']}
+      ]},
+      { name:'学习进度', cats:[
+        {label:'追踪',leaves:[{t:'课时完成标记',crit:true},'学习时长统计','连续打卡','证书/勋章']},
+        {label:'同步',leaves:[{t:'多端进度同步',crit:true},'断点续学(记忆播放位置)','离线缓存','学习提醒Push']}
+      ]}
+    ]
+  },
+  // ====== 5 ======
+  {
+    name:'直播/短视频', icon:'🎥', modules:[
+      { name:'直播推流', cats:[
+        {label:'开播',leaves:[{t:'推流地址生成',crit:true},'RTMP/HLS协议','码率/分辨率适配','美颜/滤镜/特效']},
+        {label:'稳定性',leaves:[{t:'弱网不中断',crit:true},'自动切换码率','断流重连<3s','首屏加载<2s']}
+      ]},
+      { name:'弹幕/礼物', cats:[
+        {label:'弹幕',leaves:[{t:'发送/显示/屏蔽',crit:true},'弹幕速率控制(防刷屏)','敏感词过滤','彩色/特效弹幕']},
+        {label:'礼物',leaves:[{t:'礼物发送/接收',crit:true},'连击特效','排行榜刷新','收益计算','提现']}
+      ]},
+      { name:'内容审核', cats:[
+        {label:'审核',leaves:[{t:'AI鉴黄/暴恐/谩骂',crit:true},{t:'人工复审机制',crit:true},'黑名单直播间','封禁/解封']},
+        {label:'举报',leaves:[{t:'用户举报入口',crit:true},'举报分类(色情/诈骗/侵权)','举报处理时效','申诉流程']}
+      ]},
+      { name:'创作者中心', cats:[
+        {label:'数据',leaves:[{t:'播放量/点赞/评论/转发',crit:true},'粉丝画像','收益明细','作品管理/编辑/删除']},
+        {label:'认证',leaves:[{t:'实名认证',crit:true},'机构认证','认证特权差异']}
+      ]}
+    ]
+  },
+  // ====== 6 ======
+  {
+    name:'游戏行业', icon:'🎮', modules:[
+      { name:'账号/登录', cats:[
+        {label:'登录',leaves:[{t:'手机/邮箱/第三方',crit:true},'快速登录(设备锁)','游客登录→绑定','账号找回']},
+        {label:'安全',leaves:[{t:'异地登录提醒',crit:true},'二级密码(交易/销毁)','设备锁/人脸验证','防沉迷(未成年)']}
+      ]},
+      { name:'充值/支付', cats:[
+        {label:'充值',leaves:[{t:'内购(IAP/第三方)',crit:true},'档位(6/30/68/128/648)','首充/续充优惠','充值不到账处理',{t:'重复扣款',crit:true}]},
+        {label:'道具',leaves:[{t:'购买/赠送/索要',crit:true},'限时/限量道具','概率公示(抽卡)','保底机制验证']}
+      ]},
+      { name:'匹配/战斗', cats:[
+        {label:'匹配',leaves:[{t:'ELO/段位匹配',crit:true},'匹配超时处理','组队匹配','取消匹配惩罚']},
+        {label:'战斗',leaves:[{t:'操作响应延迟<100ms',crit:true},'技能释放/命中判定','断线重连→回到战场','结算/战报准确']}
+      ]},
+      { name:'背包/道具', cats:[
+        {label:'道具',leaves:[{t:'获得/使用/丢弃',crit:true},'过期道具处理','数量上限','不可交易标记']},
+        {label:'一致性',leaves:[{t:'服务器权威校验',crit:true},'防止客户端篡改数量','回档后补偿','交易行(上架/下架/购买)']}
+      ]},
+      { name:'排行榜', cats:[
+        {label:'榜单',leaves:[{t:'实时刷新(延迟<5s)',crit:true},'榜单分类(战力/段位/财富)','奖励发放','结算时间边界(周/月)']},
+        {label:'反作弊',leaves:[{t:'异常数据过滤',crit:true},'外挂检测','人工审核','封禁名单']}
+      ]}
+    ]
+  },
+  // ====== 7 ======
+  {
+    name:'出行/网约车', icon:'🚗', modules:[
+      { name:'叫车/派单', cats:[
+        {label:'叫车',leaves:[{t:'上车点/目的地输入',crit:true},'车型选择(快车/专车/拼车)','预估价格',{t:'定位准确性',crit:true}]},
+        {label:'派单',leaves:[{t:'附近司机匹配',crit:true},'等待时长提示','取消订单(有/无责)','司机拒单处理']}
+      ]},
+      { name:'行程中', cats:[
+        {label:'导航',leaves:[{t:'路线规划(3条备选)',crit:true},'实时路况/避开拥堵','GPS信号丢失降级','偏航重新规划']},
+        {label:'安全',leaves:[{t:'一键报警',crit:true},{t:'行程分享(给好友)',crit:true},'录音保护','夜间安全提醒']}
+      ]},
+      { name:'支付/评价', cats:[
+        {label:'支付',leaves:[{t:'自动扣款/手动支付',crit:true},'优惠券/折扣','行程变更调价','异议订单处理']},
+        {label:'评价',leaves:[{t:'司机/乘客互评',crit:true},'标签评价(干净/准时/态度好)','差评原因分类','匿名评价']}
+      ]}
+    ]
+  },
+  // ====== 8 ======
+  {
+    name:'外卖/餐饮', icon:'🍔', modules:[
+      { name:'商家/菜品浏览', cats:[
+        {label:'列表',leaves:[{t:'按距离/评分/销量排序',crit:true},'筛选(品类/价格/优惠)','搜索商家/菜品','商家状态(营业/休息)']},
+        {label:'详情',leaves:[{t:'菜品规格选择(大小/口味)',crit:true},'库存联动(售罄灰显)','起送价/配送费','评价/销量展示']}
+      ]},
+      { name:'下单/接单', cats:[
+        {label:'下单',leaves:[{t:'地址管理',crit:true},'备注(口味/不要辣)','优惠券/满减/红包','预计送达时间']},
+        {label:'接单',leaves:[{t:'商家接单/拒单',crit:true},'自动接单(超时)','修改订单(加菜/退菜)','打印小票']}
+      ]},
+      { name:'骑手配送', cats:[
+        {label:'配送',leaves:[{t:'骑手接单/取餐/送达三态',crit:true},'实时位置追踪','超时预警','异常(联系不上/地址错误)']},
+        {label:'妥投',leaves:[{t:'送达确认(拍照/签字)',crit:true},'超时赔付','顾客申诉(未收到/少餐)']}
+      ]},
+      { name:'评价/投诉', cats:[
+        {label:'评价',leaves:[{t:'商家/骑手双评价',crit:true},'星级+标签+文字+图片','差评商家回复','恶意差评申诉']},
+        {label:'投诉',leaves:[{t:'食品安全投诉',crit:true},'退款/赔付流程','投诉处理时效(<24h)']}
+      ]}
+    ]
+  },
+  // ====== 9 ======
+  {
+    name:'医疗健康', icon:'🏥', modules:[
+      { name:'预约挂号', cats:[
+        {label:'预约',leaves:[{t:'科室→医生→时段选择',crit:true},'未来7天号源','实名认证(姓名+身份证+手机)']},
+        {label:'限制',leaves:[{t:'同医生同日限1次',crit:true},'同科室同日限2次','黑名单(爽约3次/30天)','退号截止(前日15:00)']},
+        {label:'支付',leaves:[{t:'10分钟内支付挂号费',crit:true},'超时自动取消+释放号源','退号退款(全额)']}
+      ]},
+      { name:'在线问诊', cats:[
+        {label:'问诊',leaves:[{t:'图文/电话/视频',crit:true},'病情描述→AI预分诊','医生接诊时效(30分钟)','处方开具(电子签名)']},
+        {label:'处方',leaves:[{t:'电子处方审核',crit:true},'处方有效期','药品配伍禁忌提醒','处方流转到药店']}
+      ]},
+      { name:'健康档案', cats:[
+        {label:'档案',leaves:[{t:'病历/检验报告/影像',crit:true},'数据脱敏展示','跨机构共享授权','档案导出/打印']},
+        {label:'隐私',leaves:[{t:'HIPAA/个人信息保护法',crit:true},'越权查看他人档案','操作日志审计','数据加密存储']}
+      ]}
+    ]
+  },
+  // ====== 10 ======
+  {
+    name:'物流快递', icon:'📦', modules:[
+      { name:'寄件下单', cats:[
+        {label:'下单',leaves:[{t:'寄/收件地址填写',crit:true},'物品类型/重量/尺寸','保价(0.5%费率)','上门取件时间预约']},
+        {label:'计费',leaves:[{t:'体积重vs实际重取大',crit:true},'首重+续重模式','续重不足1kg按1kg','区域阶梯费率(5级)','文件小件一口价']}
+      ]},
+      { name:'物流轨迹', cats:[
+        {label:'轨迹',leaves:[{t:'揽收→运输→派送→签收',crit:true},'轨迹节点时间准确','GPS位置更新频率','异常(退回/滞留)提示']},
+        {label:'查询',leaves:[{t:'单号查询',crit:true},'批量查询','扫码查件','无结果提示(单号不存在/未揽收)']}
+      ]},
+      { name:'签收', cats:[
+        {label:'签收',leaves:[{t:'本人/代收/快递柜',crit:true},'电子签名/拍照','拒收处理','超时未取退回']},
+        {label:'异常',leaves:[{t:'破损/少件理赔',crit:true},'投诉工单(24h内响应)','改地址/改派(未签收前)','重量/费用争议']}
+      ]}
+    ]
+  },
+  // ====== 11 ======
+  {
+    name:'房产/租房', icon:'🏠', modules:[
+      { name:'房源搜索', cats:[
+        {label:'搜索',leaves:[{t:'区域/地铁/小区/学校',crit:true},'户型/面积/价格筛选','地图找房','VR看房']},
+        {label:'详情',leaves:[{t:'房源信息完整(面积/朝向/楼层)',crit:true},'实拍图vs效果图标记','经纪人信息','历史成交价参考']}
+      ]},
+      { name:'在线签约', cats:[
+        {label:'签约',leaves:[{t:'电子合同生成',crit:true},'实名认证(人脸+身份证)','合同条款关键信息高亮','电子签名(存证)']},
+        {label:'费用',leaves:[{t:'租金/押金/中介费计算',crit:true},'月付/季付/年付','水电煤物业费分摊']}
+      ]},
+      { name:'房贷计算器', cats:[
+        {label:'计算',leaves:[{t:'等额本息/等额本金',crit:true},'利率(LPR+基点)','公积金/商贷/组合贷','提前还款/月供变化']},
+        {label:'校验',leaves:[{t:'首付比例(30%/40%/70%)',crit:true},'贷款年限边界(1/30/31年)','还款日(节假日顺延)']}
+      ]}
+    ]
+  },
+  // ====== 12 ======
+  {
+    name:'招聘/求职', icon:'💼', modules:[
+      { name:'职位搜索', cats:[
+        {label:'搜索',leaves:[{t:'关键词/城市/薪资/经验',crit:true},'公司筛选(行业/规模/融资)','附近职位(LBS)','搜索历史/订阅']},
+        {label:'推荐',leaves:[{t:'AI简历匹配',crit:true},'看了还看/相似职位','新职位Push通知','急聘标记']}
+      ]},
+      { name:'简历投递', cats:[
+        {label:'投递',leaves:[{t:'在线简历/附件简历',crit:true},'投递状态(已投/被查看/初筛/面试/录用)','批量投递限制(防滥用)','投递历史']},
+        {label:'沟通',leaves:[{t:'HR在线IM',crit:true},'面试邀请/确认/改期','面试评价(双向)','Offer/拒信通知']}
+      ]},
+      { name:'在线笔试', cats:[
+        {label:'考试',leaves:[{t:'编程题(在线IDE)',crit:true},'选择题/问答题','摄像头监控(防作弊)','切屏检测','限时自动提交']},
+        {label:'判卷',leaves:[{t:'自动判分(客观题)',crit:true},'TestCase跑分(编程题)','人工阅卷','成绩复议']}
+      ]},
+      { name:'企业认证', cats:[
+        {label:'认证',leaves:[{t:'营业执照认证',crit:true},'办公地址验证','HR身份认证','认证标识展示','虚假企业举报']}
+      ]}
+    ]
+  },
+  // ====== 13 ======
+  {
+    name:'音乐/音频', icon:'🎵', modules:[
+      { name:'歌曲播放', cats:[
+        {label:'播放',leaves:[{t:'播放/暂停/上下曲',crit:true},'快进/快退','倍速(0.5/1.0/1.5/2.0)','音质切换(标准/高/无损)']},
+        {label:'异常',leaves:[{t:'加载失败重试',crit:true},'网络切换不中断','断网续播(缓存)','后台播放','锁屏控制']}
+      ]},
+      { name:'歌单管理', cats:[
+        {label:'歌单',leaves:[{t:'创建/编辑/删除歌单',crit:true},'收藏歌单','添加/移除歌曲','排序(手动拖拽)','歌单分享']},
+        {label:'喜欢',leaves:[{t:'我喜欢(红心)',crit:true},'最近播放','听歌排行(周/月/年)']}
+      ]},
+      { name:'下载/缓存', cats:[
+        {label:'下载',leaves:[{t:'单曲/批量下载',crit:true},'下载质量选择','断点续传','存储空间不足提示','已下载管理']},
+        {label:'会员',leaves:[{t:'仅会员可下载',crit:true},'会员过期→已下载歌曲灰显','下载数量上限']}
+      ]},
+      { name:'音频识别', cats:[
+        {label:'识别',leaves:[{t:'听歌识曲(准确率)',crit:true},'哼唱识曲','环境噪音下识别','无结果处理','识别历史']}
+      ]}
+    ]
+  },
+  // ====== 14 ======
+  {
+    name:'旅游/OTA', icon:'✈️', modules:[
+      { name:'机票搜索', cats:[
+        {label:'搜索',leaves:[{t:'单程/往返/多程',crit:true},'日期选择(含低价日历)','舱位(经济/商务/头等)','儿童/婴儿票']},
+        {label:'价格',leaves:[{t:'含税总价展示',crit:true},'退改签规则清晰','行李额标注','价格变动提醒']}
+      ]},
+      { name:'酒店预订', cats:[
+        {label:'预订',leaves:[{t:'入住/离店日期',crit:true},'房型选择(含/不含早)','人数/床型','到店付/在线付']},
+        {label:'退改',leaves:[{t:'免费取消时限(如入住前18:00)',crit:true},'超时取消扣费','部分取消(多间订1间)','不可取消房型标记']}
+      ]},
+      { name:'行程管理', cats:[
+        {label:'行程',leaves:[{t:'机票+酒店+景点整合',crit:true},'行程提醒(值机/入住)','行程分享给同行人','电子登机牌/电子票']},
+        {label:'变更',leaves:[{t:'改签(自愿/非自愿)',crit:true},'航班延误/取消处理','酒店修改入住日期']}
+      ]},
+      { name:'签证/保险', cats:[
+        {label:'签证',leaves:[{t:'签证类型/国家选择',crit:true},'材料清单+上传','办理进度跟踪','出签率统计']},
+        {label:'保险',leaves:[{t:'旅行险(航班延误/行李丢失/医疗)',crit:true},'保障范围明细','理赔流程','电子保单']}
+      ]}
+    ]
+  },
+  // ====== 15 ======
+  {
+    name:'汽车/车联网', icon:'🚘', modules:[
+      { name:'车辆控制', cats:[
+        {label:'控制',leaves:[{t:'远程锁车/解锁',crit:true},'远程启动引擎/空调','车窗/天窗控制','鸣笛/闪灯寻车']},
+        {label:'安全',leaves:[{t:'指令加密传输',crit:true},'操作二次确认','行驶中禁止远程熄火','地理围栏(电子围栏)']}
+      ]},
+      { name:'导航', cats:[
+        {label:'导航',leaves:[{t:'实时路况/躲避拥堵',crit:true},'充电站/加油站沿途搜索','离线地图(无网络可用)','GPS隧道内惯性导航']},
+        {label:'路线',leaves:[{t:'多条路线推荐',crit:true},'避开限行/高速','途经点添加','路线偏好记忆']}
+      ]},
+      { name:'车辆状态', cats:[
+        {label:'状态',leaves:[{t:'电量/油量/续航',crit:true},'胎压/胎温','车门/车窗/天窗状态','保养提醒','故障码读取']},
+        {label:'数据',leaves:[{t:'行程记录(里程/能耗)',crit:true},'驾驶行为评分','数据上传频率']}
+      ]}
+    ]
+  },
+  // ====== 16 ======
+  {
+    name:'智能家居/IoT', icon:'🏡', modules:[
+      { name:'设备配网', cats:[
+        {label:'配网',leaves:[{t:'WiFi配网(AP/蓝牙/EZ)',crit:true},'2.4G/5G双频兼容','配网超时重试','重置设备→重新配网']},
+        {label:'异常',leaves:[{t:'WiFi密码错误提示',crit:true},'路由器断网后设备状态','设备离在线状态准确','信号弱(距离远/穿墙)']}
+      ]},
+      { name:'设备控制', cats:[
+        {label:'控制',leaves:[{t:'开关/调节(灯光/空调/窗帘)',crit:true},'指令响应时间<500ms','语音控制(天猫精灵/小爱)','面板/旋钮物理控制同步']},
+        {label:'状态',leaves:[{t:'设备状态实时同步',crit:true},'多端控制一致性(App/语音/物理)','离线设备操作→恢复后执行']}
+      ]},
+      { name:'场景联动', cats:[
+        {label:'场景',leaves:[{t:'一键执行(离家/回家/睡眠)',crit:true},'自动化(if温度>30→开空调)','定时(每天7:00开窗帘)','条件触发(门磁开→亮灯)']},
+        {label:'可靠性',leaves:[{t:'联动执行成功率',crit:true},'多设备同时联动','执行超时处理','联动日志/执行记录']}
+      ]},
+      { name:'固件升级', cats:[
+        {label:'OTA',leaves:[{t:'升级检测/推送',crit:true},'升级中设备不可用提示','升级失败回滚','升级后配置保留','电量不足禁止升级']}
+      ]}
+    ]
+  },
+  // ====== 17 ======
+  {
+    name:'企业办公/SaaS', icon:'💻', modules:[
+      { name:'即时通讯', cats:[
+        {label:'消息',leaves:[{t:'单聊/群聊/全员群',crit:true},'消息必达(已读/未读)',{t:'消息撤回(2分钟)',crit:true},'文件/图片/视频','搜索历史消息']},
+        {label:'通知',leaves:[{t:'@所有人/指定人',crit:true},'DING/强提醒','免打扰模式','消息免打扰时段']}
+      ]},
+      { name:'文档协作', cats:[
+        {label:'编辑',leaves:[{t:'多人实时协同编辑',crit:true},'冲突处理(OT/CRDT)','修订记录/版本历史','评论/批注']},
+        {label:'权限',leaves:[{t:'查看/评论/编辑权限',crit:true},'链接分享(有效期/密码)','禁止复制/下载','企业外禁止访问']}
+      ]},
+      { name:'视频会议', cats:[
+        {label:'会议',leaves:[{t:'创建/加入/预约会议',crit:true},'屏幕共享','虚拟背景','美颜','录制(本地/云端)']},
+        {label:'质量',leaves:[{t:'音视频延迟<300ms',crit:true},'弱网自适应','回声消除/降噪','最大参会人数(如500人)']}
+      ]},
+      { name:'审批流', cats:[
+        {label:'流程',leaves:[{t:'自定义审批模板',crit:true},'多级审批/会签/或签','条件分支(金额>5000→总监批)','催办/转交/加签']},
+        {label:'留痕',leaves:[{t:'审批记录完整',crit:true},'撤销/驳回→重新提交','审批时效统计','移动端审批']}
+      ]}
+    ]
+  },
+  // ====== 18 ======
+  {
+    name:'政务/公共服务', icon:'🏛️', modules:[
+      { name:'实名认证', cats:[
+        {label:'认证',leaves:[{t:'身份证OCR+人脸比对',crit:true},'活体检测(眨眼/点头/读数字)','港澳台/外籍证件','认证失败原因明确']},
+        {label:'安全',leaves:[{t:'防止照片/视频攻击',crit:true},'认证次数限制(日限5次)','信息加密存储','认证记录留痕']}
+      ]},
+      { name:'业务办理', cats:[
+        {label:'办理',leaves:[{t:'在线填表(含校验)',crit:true},'材料上传(拍照/相册/文件)','办理进度查询','办理结果通知']},
+        {label:'状态',leaves:[{t:'办事状态机(待提交→审核中→补正→办结)',crit:true},'补正通知(材料不全)','超时预警','差评/投诉']}
+      ]},
+      { name:'电子证照', cats:[
+        {label:'证照',leaves:[{t:'证照生成(含防伪水印)',crit:true},'证照扫码核验','证照有效期','证照挂失/注销']},
+        {label:'互认',leaves:[{t:'跨省/跨部门互认',crit:true},'线下窗口扫码调用','证照数据一致性']}
+      ]},
+      { name:'在线缴费', cats:[
+        {label:'缴费',leaves:[{t:'水电煤/社保/罚款',crit:true},'缴费金额校验','缴费记录/电子发票','缴费失败退款']},
+        {label:'渠道',leaves:[{t:'微信/支付宝/银联/数币',crit:true},'代扣协议签订/解约']}
+      ]}
+    ]
+  },
+  // ====== 19 ======
+  {
+    name:'保险行业', icon:'🛡️', modules:[
+      { name:'产品浏览', cats:[
+        {label:'展示',leaves:[{t:'险种分类(寿险/健康/意外/财产)',crit:true},'保障计划对比','保费试算(年龄/性别/保额)','健康告知']},
+        {label:'合规',leaves:[{t:'条款/免责声明必展示',crit:true},'关键信息加粗/标红','犹豫期提示(通常15天)','销售资质展示']}
+      ]},
+      { name:'在线投保', cats:[
+        {label:'投保',leaves:[{t:'健康告知→核保(标体/加费/拒保)',crit:true},'受益人指定','保费计算准确','电子保单生成']},
+        {label:'支付',leaves:[{t:'首期/续期保费支付',crit:true},'自动续费(代扣)','宽限期(60天)','犹豫期内退保(全额)']}
+      ]},
+      { name:'理赔申请', cats:[
+        {label:'理赔',leaves:[{t:'在线报案→材料上传→审核→赔付',crit:true},'理赔时效(小额<3天)','材料补正通知','拒赔原因明确']},
+        {label:'金额',leaves:[{t:'赔付金额计算(免赔额/赔付比例/限额)',crit:true},'重复理赔拦截','直赔/垫付(医院直连)']}
+      ]},
+      { name:'保单管理', cats:[
+        {label:'保单',leaves:[{t:'保单列表(有效/已失效)',crit:true},'保单详情(保障期间/保额/条款)','续保提醒','保单贷款(现金价值)']}
+      ]}
+    ]
+  },
+  // ====== 20 ======
+  {
+    name:'广告/营销', icon:'📊', modules:[
+      { name:'广告投放', cats:[
+        {label:'投放',leaves:[{t:'创建广告计划(预算/出价/定向)',crit:true},'广告审核(素材+落地页)','投放时段设置','AB测试(多创意对比)']},
+        {label:'扣费',leaves:[{t:'CPC/CPM/CPA/OCPM计费',crit:true},'实时扣费/返款','日预算消耗控制(不超110%)','无效点击过滤']}
+      ]},
+      { name:'受众定向', cats:[
+        {label:'定向',leaves:[{t:'地域/年龄/性别',crit:true},'兴趣标签','行为定向(已购/浏览)','Lookalike(相似人群)','排除已转化用户']},
+        {label:'频控',leaves:[{t:'频次控制(每人每天≤N次)',crit:true},'跨广告位频控','频控数据准确性']}
+      ]},
+      { name:'数据报表', cats:[
+        {label:'报表',leaves:[{t:'曝光/点击/转化/ROI',crit:true},'实时/离线数据延迟','分维度下钻(地域/年龄/时段)','数据导出(Excel/CSV)']},
+        {label:'归因',leaves:[{t:'点击归因vs曝光归因',crit:true},'归因窗口(7/14/30天)','多触点归因(U型/W型)','归因数据vs第三方差异<10%']}
+      ]},
+      { name:'素材管理', cats:[
+        {label:'素材',leaves:[{t:'图片/视频/文案上传',crit:true},'素材审核(涉黄/违禁词)','尺寸自适应(不同广告位)','素材A/B测试']},
+        {label:'落地页',leaves:[{t:'落地页加载速度<3s',crit:true},'落地页与广告素材一致','转化追踪埋点(表单/购买/下载)']}
+      ]}
+    ]
+  }
+];
+
+// ==================== RENDER ====================
+const PER_PAGE = 1; // one industry per page
+let currentPage = 1;
+const totalPages = industries.length;
+
+function renderIndustry(data) {
+  const cols = ['m1','m2','m3','m4','m5','m6'];
+  return `
+    <div class="mind-map">
+      <div class="root-node">
+        <span class="icon">${data.icon}</span>
+        ${data.name}
+      </div>
+      <div class="levels-container">
+        ${data.modules.map((mod, mi) => `
+          <div class="module-row">
+            <div class="mod-node ${cols[mi % cols.length]}">${mod.name}</div>
+            <div class="cat-group">
+              ${mod.cats.map((cat, ci) => `
+                <div class="cat-row">
+                  <div class="cat-label">${cat.label}</div>
+                  <div class="leaf-cluster">
+                    ${cat.leaves.map(l => {
+                      const isCrit = typeof l === 'object' && l.crit;
+                      const txt = typeof l === 'object' ? l.t : l;
+                      return `<span class="leaf${isCrit ? ' crit' : ''}">${txt}</span>`;
+                    }).join('')}
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `;
+}
+
+function renderPage(idx) {
+  const data = industries[idx];
+  return renderIndustry(data);
+}
+
+function init() {
+  const container = document.getElementById('pagesContainer');
+  let html = '';
+  for (let i = 0; i < totalPages; i++) {
+    html += `<div class="page${i === 0 ? ' active' : ''}" data-page="${i}">
+      <div class="page-info">行业 <b>${i+1}</b> / ${totalPages} &nbsp;·&nbsp; ${industries[i].icon} ${industries[i].name}</div>
+      ${renderPage(i)}
+    </div>`;
+  }
+  container.innerHTML = html;
+
+  // Nav bar
+  const navBar = document.getElementById('navBar');
+  navBar.innerHTML = industries.map((ind, i) =>
+    `<button class="${i === 0 ? 'active' : ''}" onclick="goPage(${i})">${ind.icon} ${ind.name}</button>`
+  ).join('');
+
+  buildPagination();
+}
+
+function buildPagination() {
+  const pg = document.getElementById('pagination');
+  // Show pages in groups of 10
+  const groupSize = 10;
+  const groupStart = Math.floor(currentPage / groupSize) * groupSize;
+  const groupEnd = Math.min(groupStart + groupSize, totalPages);
+
+  let html = `<button class="arrow" onclick="goPage(${currentPage - 1})" ${currentPage === 0 ? 'disabled' : ''}>◀</button>`;
+
+  if (groupStart > 0) {
+    html += `<button onclick="goPage(0)">1</button><span style="color:var(--sub)">…</span>`;
+  }
+
+  for (let i = groupStart; i < groupEnd; i++) {
+    html += `<button class="${i === currentPage ? 'active' : ''}" onclick="goPage(${i})">${i + 1}</button>`;
+  }
+
+  if (groupEnd < totalPages) {
+    html += `<span style="color:var(--sub)">…</span><button onclick="goPage(${totalPages - 1})">${totalPages}</button>`;
+  }
+
+  html += `<button class="arrow" onclick="goPage(${currentPage + 1})" ${currentPage >= totalPages - 1 ? 'disabled' : ''}>▶</button>`;
+  pg.innerHTML = html;
+}
+
+function goPage(p) {
+  if (p < 0 || p >= totalPages) return;
+  currentPage = p;
+
+  document.querySelectorAll('.page').forEach(el => el.classList.remove('active'));
+  const target = document.querySelector(`.page[data-page="${p}"]`);
+  if (target) target.classList.add('active');
+
+  // Update nav
+  document.querySelectorAll('#navBar button').forEach((btn, i) => {
+    btn.classList.toggle('active', i === p);
+  });
+
+  buildPagination();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// Keyboard
+document.addEventListener('keydown', e => {
+  if (e.key === 'ArrowLeft') goPage(currentPage - 1);
+  if (e.key === 'ArrowRight') goPage(currentPage + 1);
+});
+
+init();
+</script>
+</body>
+</html>

@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ticket.app.repository.ticket.TicketCommentRepository">
+
+    <resultMap id="BaseResultMap" type="com.ticket.app.entity.TicketComment">
+        <id column="id" property="id"/>
+        <result column="ticket_id" property="ticketId"/>
+        <result column="user_id" property="userId"/>
+        <result column="username" property="username"/>
+        <result column="rating" property="rating"/>
+        <result column="content" property="content"/>
+        <result column="status" property="status"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+    </resultMap>
+
+    <select id="selectVisibleByTicketId" resultMap="BaseResultMap">
+        SELECT id, ticket_id, user_id, username, rating, content, status, created_at, updated_at
+        FROM ticket_comment
+        WHERE ticket_id = #{ticketId}
+        AND status = 1
+        ORDER BY created_at DESC, id DESC
+        LIMIT #{limit}
+    </select>
+
+    <select id="countVisibleByTicketId" resultType="int">
+        SELECT COUNT(1)
+        FROM ticket_comment
+        WHERE ticket_id = #{ticketId}
+        AND status = 1
+    </select>
+
+    <select id="averageRatingByTicketId" resultType="java.math.BigDecimal">
+        SELECT COALESCE(AVG(rating), 0)
+        FROM ticket_comment
+        WHERE ticket_id = #{ticketId}
+        AND status = 1
+    </select>
+</mapper>

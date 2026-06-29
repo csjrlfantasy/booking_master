@@ -1,0 +1,80 @@
+package com.ticket.app.service.order;
+
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.ticket.app.entity.Order;
+import com.ticket.app.entity.OrderItem;
+import com.ticket.app.repository.order.OrderItemRepository;
+import com.ticket.app.repository.order.OrderRepository;
+import com.ticket.app.repository.ticket.TicketPriceLevelRepository;
+import com.ticket.app.repository.ticket.TicketRepository;
+import com.ticket.app.repository.ticket.TicketSessionRepository;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.LocalDateTime;
+import java.util.List;
+
+@Slf4j
+@Service
+@RequiredArgsConstructor
+public class OrderExpirationService {
+
+    private final OrderRepository orderRepository;
+    private final OrderItemRepository orderItemRepository;
+    private final TicketRepository ticketRepository;
+    private final TicketSessionRepository ticketSessionRepository;
+    private final TicketPriceLevelRepository ticketPriceLevelRepository;
+
+    @Transactional(rollbackFor = Exception.class)
+    public int cancelExpiredPendingOrders() {
+        LocalDateTime now = LocalDateTime.now();
+        List<Order> expiredOrders = orderRepository.selectList(new LambdaQueryWrapper<Order>()
+                .eq(Order::getOrderStatus, Order.STATUS_PENDING_PAY)
+                .eq(Order::getPayStatus, Order.PAY_STATUS_UNPAID)
+                .isNotNull(Order::getExpireTime)
+                .le(Order::getExpireTime, now)
+                .isNull(Order::getDeletedAt));
+
+        int cancelled = 0;
+        for (Order order : expiredOrders) {
+            order.setOrderStatus(Order.STATUS_CANCELLED);
+            order.setCancelTime(now);
+            order.setCancelReason("支付超时自动取消");
+            order.setUpdatedAt(now);
+            orderRepository.updateById(order);
+            restoreInventory(order);
+            cancelled++;
+        }
+        if (cancelled > 0) {
+            log.info("自动取消超时待支付订单: count={}", cancelled);
+        }
+        return cancelled;
+    }
+
+    private void restoreInventory(Order order) {
+        List<OrderItem> items = orderItemRepository.selectList(new LambdaQueryWrapper<OrderItem>()
+                .eq(OrderItem::getOrderId, order.getId()));
+        int totalQuantity = 0;
+        if (items == null) {
+            return;
+        }
+        for (OrderItem item : items) {
+            Integer quantity = item.getQuantity();
+            if (quantity == null || quantity <= 0) {
+                continue;
+            }
+            totalQuantity += quantity;
+            if (item.getPriceLevelId() != null) {
+                ticketPriceLevelRepository.restoreStock(item.getPriceLevelId(), quantity);
+            }
+        }
+        if (totalQuantity > 0) {
+            ticketRepository.restoreStock(order.getTicketId(), totalQuantity);
+            if (order.getSessionId() != null) {
+                ticketSessionRepository.restoreCapacity(order.getSessionId(), totalQuantity);
+            }
+        }
+    }
+}

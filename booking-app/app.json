@@ -1,0 +1,30 @@
+{
+  "name": "booking-app",
+  "displayName": "票多星 TicketMore",
+  "version": "1.0.0",
+  "platforms": ["ios", "android"],
+  "privacy": "public",
+  "description": "票务App - 票多星 TicketMore",
+  "primaryColor": "#3F51B5",
+  "backgroundColor": "#F5F5F5",
+  "splash": {
+    "image": "assets/splash.png",
+    "resizeMode": "contain",
+    "backgroundColor": "#1A237E"
+  },
+  "ios": {
+    "bundleIdentifier": "com.ticketmore.app",
+    "buildNumber": "1",
+    "appStoreUrl": "https://apps.apple.com/app/ticketmore",
+    "supportsTablet": true
+  },
+  "android": {
+    "package": "com.ticketmore.app",
+    "versionCode": 1,
+    "playStoreUrl": "https://play.google.com/store/apps/details?id=com.ticketmore.app",
+    "adaptiveIcon": {
+      "foregroundImage": "assets/icon.png",
+      "backgroundColor": "#3F51B5"
+    }
+  }
+}

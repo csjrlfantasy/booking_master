@@ -1,0 +1,61 @@
+# Booking API workspace
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.iml
+.claude/
+
+# Java / Maven / Gradle outputs
+target/
+**/target/
+build/
+**/build/
+out/
+**/out/
+*.class
+*.jar
+*.war
+.gradle/
+booking-app/android/.gradle/
+booking-app/android/local.properties
+
+# Node / frontend outputs
+node_modules/
+**/node_modules/
+frontend/dist/
+booking-app/android/app/src/main/assets/
+booking-app/android/app/*.apk
+booking-app/android/app/*.aab
+
+# Python / test caches
+**/__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+
+# Logs / reports / temporary runtime files
+logs/
+report/
+*.log
+backend.log
+automation-tests/api-tests/report/
+automation-tests/report/allure-results/
+automation-tests/report/test_report.html
+uploads/
+
+# Local environment / secrets
+.env
+.env.*
+config.properties
+booking-api/src/main/resources/application-local.yml
+
+# Archives / local bundles
+*.zip
+
+# Windows special-name junk accidentally created in workspace
+nul
+**/nul

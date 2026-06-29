@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ticket.app.repository.ticket.TicketPriceLevelRepository">
+
+    <!-- 映射结果集 -->
+    <resultMap id="BaseResultMap" type="com.ticket.app.entity.TicketPriceLevel">
+        <id column="id" property="id"/>
+        <result column="ticket_id" property="ticketId"/>
+        <result column="name" property="name"/>
+        <result column="price" property="price"/>
+        <result column="cost_price" property="costPrice"/>
+        <result column="total_stock" property="totalStock"/>
+        <result column="available_stock" property="availableStock"/>
+        <result column="sold_count" property="soldCount"/>
+        <result column="seat_type" property="seatType"/>
+        <result column="description" property="description"/>
+        <result column="benefits" property="benefits"/>
+        <result column="sort_order" property="sortOrder"/>
+        <result column="status" property="status"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+    </resultMap>
+
+    <!-- 根据票务ID查询票档列表 -->
+    <select id="selectByTicketId" resultMap="BaseResultMap">
+        SELECT id, ticket_id, name, price, cost_price, total_stock, available_stock,
+               sold_count, seat_type, description, benefits, sort_order, status
+        FROM ticket_price_level
+        WHERE ticket_id = #{ticketId}
+        AND status = 1
+        ORDER BY price ASC, sort_order ASC
+    </select>
+
+</mapper>

@@ -31,7 +31,7 @@ class EnvConfig:
     # 各环境配置
     CONFIGS = {
         "dev": {
-            "base_url": "http://localhost:8088",
+            "base_url": "http://localhost:8080",
             "timeout": 30,
             "debug": True
         },

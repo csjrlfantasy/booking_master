@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ticket.app.repository.banner.BannerRepository">
+
+    <resultMap id="BaseResultMap" type="com.ticket.app.entity.Banner">
+        <id column="id" property="id"/>
+        <result column="title" property="title"/>
+        <result column="image_url" property="imageUrl"/>
+        <result column="link_type" property="linkType"/>
+        <result column="link_target" property="linkTarget"/>
+        <result column="platform" property="platform"/>
+        <result column="sort_order" property="sortOrder"/>
+        <result column="status" property="status"/>
+        <result column="start_time" property="startTime"/>
+        <result column="end_time" property="endTime"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+        <result column="deleted_at" property="deletedAt"/>
+    </resultMap>
+
+    <select id="selectVisibleByPlatform" resultMap="BaseResultMap">
+        SELECT
+            id, title, image_url, link_type, link_target, platform, sort_order, status,
+            start_time, end_time, created_at, updated_at, deleted_at
+        FROM banner
+        WHERE deleted_at IS NULL
+          AND status = 1
+          AND platform = #{platform}
+          AND (start_time IS NULL OR start_time &lt;= #{now})
+          AND (end_time IS NULL OR end_time &gt;= #{now})
+        ORDER BY sort_order ASC, id DESC
+    </select>
+</mapper>

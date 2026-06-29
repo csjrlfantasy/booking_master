@@ -1,0 +1,157 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ticket.app.repository.ticket.TicketRepository">
+
+    <!-- 映射结果集 -->
+    <resultMap id="BaseResultMap" type="com.ticket.app.entity.Ticket">
+        <id column="id" property="id"/>
+        <result column="name" property="name"/>
+        <result column="sub_name" property="subName"/>
+        <result column="category_id" property="categoryId"/>
+        <result column="category_name" property="categoryName"/>
+        <result column="venue_id" property="venueId"/>
+        <result column="venue_name" property="venueName"/>
+        <result column="poster" property="poster"/>
+        <result column="images" property="images"/>
+        <result column="description" property="description"/>
+        <result column="highlights" property="highlights"/>
+        <result column="attentions" property="attentions"/>
+        <result column="show_time_type" property="showTimeType"/>
+        <result column="show_start_date" property="showStartDate"/>
+        <result column="show_end_date" property="showEndDate"/>
+        <result column="show_start_time" property="showStartTime"/>
+        <result column="show_end_time" property="showEndTime"/>
+        <result column="duration" property="duration"/>
+        <result column="age_limit" property="ageLimit"/>
+        <result column="artist_info" property="artistInfo"/>
+        <result column="minimum_price" property="minimumPrice"/>
+        <result column="maximum_price" property="maximumPrice"/>
+        <result column="total_stock" property="totalStock"/>
+        <result column="available_stock" property="availableStock"/>
+        <result column="per_max_buy" property="perMaxBuy"/>
+        <result column="book_start_time" property="bookStartTime"/>
+        <result column="book_end_time" property="bookEndTime"/>
+        <result column="is_hot" property="isHot"/>
+        <result column="is_recommend" property="isRecommend"/>
+        <result column="status" property="status"/>
+        <result column="view_count" property="viewCount"/>
+        <result column="sale_count" property="saleCount"/>
+        <result column="sort_order" property="sortOrder"/>
+        <result column="tags" property="tags"/>
+        <result column="ext_info" property="extInfo"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+    </resultMap>
+
+    <!-- 分页查询票务列表 -->
+    <select id="selectTicketPage" resultMap="BaseResultMap">
+        SELECT 
+            id, name, sub_name, category_id, category_name, venue_id, venue_name,
+            poster, minimum_price, maximum_price, total_stock, available_stock,
+            show_start_date, show_start_time, is_hot, is_recommend, status, 
+            view_count, sale_count, sort_order
+        FROM ticket
+        <where>
+            deleted_at IS NULL
+            AND status = 2  <!-- 售票中 -->
+            <if test="categoryId != null">
+                AND category_id = #{categoryId}
+            </if>
+            <if test="keyword != null and keyword != ''">
+                AND (name LIKE CONCAT('%', #{keyword}, '%') OR sub_name LIKE CONCAT('%', #{keyword}, '%'))
+            </if>
+            <if test="startDate != null">
+                AND show_start_date &gt;= #{startDate}
+            </if>
+            <if test="endDate != null">
+                AND show_start_date &lt;= #{endDate}
+            </if>
+            <if test="minPrice != null">
+                AND minimum_price &gt;= #{minPrice}
+            </if>
+            <if test="maxPrice != null">
+                AND maximum_price &lt;= #{maxPrice}
+            </if>
+        </where>
+        <if test="sortBy != null and sortOrder != null">
+            ORDER BY 
+            <choose>
+                <when test="sortBy == 'price'">minimum_price</when>
+                <when test="sortBy == 'date'">show_start_date</when>
+                <when test="sortBy == 'sale'">sale_count</when>
+                <when test="sortBy == 'view'">view_count</when>
+                <otherwise>sort_order</otherwise>
+            </choose>
+            <choose>
+                <when test="sortOrder == 'asc'">ASC</when>
+                <otherwise>DESC</otherwise>
+            </choose>
+        </if>
+        <if test="sortBy == null or sortOrder == null">
+            ORDER BY show_start_date ASC
+        </if>
+    </select>
+
+    <!-- 查询热门票务 -->
+    <select id="selectHotTickets" resultMap="BaseResultMap">
+        SELECT 
+            id, name, sub_name, category_id, category_name, venue_id, venue_name,
+            poster, minimum_price, maximum_price, total_stock, available_stock,
+            show_start_date, show_start_time, is_hot, is_recommend, status,
+            view_count, sale_count, sort_order
+        FROM ticket
+        WHERE deleted_at IS NULL
+        AND status = 2  <!-- 售票中 -->
+        <choose>
+            <when test="limit != null and limit > 0">
+                ORDER BY sale_count DESC, view_count DESC
+                LIMIT #{limit}
+            </when>
+            <otherwise>
+                ORDER BY sale_count DESC, view_count DESC
+                LIMIT 10
+            </otherwise>
+        </choose>
+    </select>
+
+    <!-- 根据ID查询票务详情 -->
+    <select id="selectUpcomingTickets" resultMap="BaseResultMap">
+        SELECT
+            id, name, sub_name, category_id, category_name, venue_id, venue_name,
+            poster, minimum_price, maximum_price, total_stock, available_stock,
+            show_start_date, show_start_time, book_start_time, is_hot, is_recommend, status,
+            view_count, sale_count, sort_order
+        FROM ticket
+        WHERE deleted_at IS NULL
+        AND (
+            status = 1
+            OR (book_start_time IS NOT NULL AND book_start_time &gt; NOW())
+        )
+        ORDER BY book_start_time ASC, show_start_date ASC
+        <choose>
+            <when test="limit != null and limit > 0">
+                LIMIT #{limit}
+            </when>
+            <otherwise>
+                LIMIT 10
+            </otherwise>
+        </choose>
+    </select>
+
+    <select id="selectTicketDetailById" resultMap="BaseResultMap">
+        SELECT 
+            id, name, sub_name, category_id, category_name, venue_id, venue_name,
+            poster, images, description, highlights, attentions,
+            show_time_type, show_start_date, show_end_date, show_start_time, show_end_time,
+            duration, age_limit, artist_info,
+            minimum_price, maximum_price, total_stock, available_stock,
+            per_max_buy, book_start_time, book_end_time,
+            is_hot, is_recommend, status,
+            view_count, sale_count, sort_order, tags, ext_info,
+            created_at, updated_at
+        FROM ticket
+        WHERE id = #{id}
+        AND deleted_at IS NULL
+    </select>
+
+</mapper>
