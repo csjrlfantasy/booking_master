@@ -14,7 +14,6 @@ import com.ticket.app.repository.ticket.TicketPriceLevelRepository;
 import com.ticket.app.repository.ticket.TicketRepository;
 import com.ticket.app.repository.ticket.TicketSessionRepository;
 import com.ticket.app.service.coupon.CouponService;
-import com.ticket.app.service.user.UserIdentityService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -55,9 +54,6 @@ class OrderInventoryServiceTest {
     @Mock
     private TicketPriceLevelRepository ticketPriceLevelRepository;
 
-    @Mock
-    private UserIdentityService userIdentityService;
-
     private OrderServiceImpl orderService;
 
     @BeforeEach
@@ -68,8 +64,7 @@ class OrderInventoryServiceTest {
                 couponService,
                 ticketRepository,
                 ticketSessionRepository,
-                ticketPriceLevelRepository,
-                userIdentityService
+                ticketPriceLevelRepository
         );
     }
 
@@ -163,7 +158,6 @@ class OrderInventoryServiceTest {
         item.setPriceLevelName("VIP");
         item.setQuantity(quantity);
         item.setUnitPrice(unitPrice);
-        item.setAttendees(createAttendees(quantity));
 
         CreateOrderRequest request = new CreateOrderRequest();
         request.setTicketId(1L);
@@ -173,22 +167,6 @@ class OrderInventoryServiceTest {
         request.setContactPhone("13800138000");
         request.setSource("test");
         return request;
-    }
-
-    private List<CreateOrderRequest.AttendeeRequest> createAttendees(int quantity) {
-        List<CreateOrderRequest.AttendeeRequest> attendees = new java.util.ArrayList<>();
-        String[] idCards = {
-                "11010519491231002X",
-                "110105200806090025",
-                "110105200001010031"
-        };
-        for (int i = 0; i < quantity; i++) {
-            CreateOrderRequest.AttendeeRequest attendee = new CreateOrderRequest.AttendeeRequest();
-            attendee.setRealName("测试用户" + i);
-            attendee.setIdCardNo(idCards[i]);
-            attendees.add(attendee);
-        }
-        return attendees;
     }
 
     private Ticket createTicket() {

@@ -6,24 +6,24 @@ import lombok.Data;
 
 import java.math.BigDecimal;
 
-/**
- * 优惠券校验请求
- */
-@Schema(description = "优惠券校验请求")
+@Schema(description = "Coupon validation request")
 @Data
 public class ValidateCouponRequest {
 
-    @Schema(description = "优惠券码/优惠券ID", required = true, example = "COUPON123456")
-    @NotNull(message = "优惠券码不能为空")
+    @Schema(description = "Claimed user coupon ID", required = true, example = "301")
+    @NotNull(message = "userCouponId is required")
+    private Long userCouponId;
+
+    @Schema(description = "Legacy coupon code or coupon ID field", example = "COUPON123456")
     private String couponCode;
 
-    @Schema(description = "订单总金额", required = true, example = "299.00")
-    @NotNull(message = "订单金额不能为空")
+    @Schema(description = "Order amount", required = true, example = "299.00")
+    @NotNull(message = "orderAmount is required")
     private BigDecimal orderAmount;
 
-    @Schema(description = "票务ID", example = "1")
+    @Schema(description = "Ticket ID", example = "1")
     private Long ticketId;
 
-    @Schema(description = "票务分类ID", example = "1")
+    @Schema(description = "Ticket category ID", example = "1")
     private Integer categoryId;
 }

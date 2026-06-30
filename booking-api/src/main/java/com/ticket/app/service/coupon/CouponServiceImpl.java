@@ -250,6 +250,16 @@ public class CouponServiceImpl implements CouponService {
 
     @Override
     public ValidateCouponResponse validateCoupon(Long userId, ValidateCouponRequest request) {
+        if (request.getUserCouponId() != null) {
+            return validateUserCoupon(
+                    userId,
+                    request.getUserCouponId(),
+                    request.getOrderAmount(),
+                    request.getTicketId(),
+                    request.getCategoryId()
+            );
+        }
+
         ValidateCouponResponse response = new ValidateCouponResponse();
         
         // 尝试通过优惠券码查找用户优惠券
@@ -370,13 +380,7 @@ public class CouponServiceImpl implements CouponService {
             return;
         }
         
-        LocalDateTime now = LocalDateTime.now();
-        boolean outOfWindow = userCoupon.getValidEndTime() != null && now.isAfter(userCoupon.getValidEndTime());
-        if (forceExpireIfOutOfWindow && outOfWindow) {
-            userCoupon.setStatus(UserCoupon.STATUS_EXPIRED);
-        } else {
-            userCoupon.setStatus(UserCoupon.STATUS_UNUSED);
-        }
+        userCoupon.setStatus(UserCoupon.STATUS_UNUSED);
         userCoupon.setUseTime(null);
         userCoupon.setOrderId(null);
         userCouponRepository.updateById(userCoupon);

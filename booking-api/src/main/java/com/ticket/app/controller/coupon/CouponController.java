@@ -18,16 +18,19 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 
 import java.math.BigDecimal;
 import java.util.List;
 
-/**
- * 优惠券控制器
- */
 @Slf4j
-@Tag(name = "优惠券管理", description = "优惠券相关接口")
+@Tag(name = "Coupon", description = "Coupon APIs")
 @RestController
 @RequestMapping("/coupons")
 @RequiredArgsConstructor
@@ -36,21 +39,16 @@ public class CouponController {
     private final CouponService couponService;
     private final JwtUtils jwtUtils;
 
-    /**
-     * 获取可用优惠券列表
-     * GET /api/coupons
-     */
     @GetMapping
-    @Operation(summary = "获取可用优惠券", description = "获取当前订单可用的优惠券列表")
+    @Operation(summary = "Get available coupons", description = "List coupons available for the current order")
     public Result<List<UserCouponResponse>> getAvailableCoupons(
-            @Parameter(description = "订单总金额", required = false) @RequestParam(required = false) BigDecimal orderAmount,
-            @Parameter(description = "票务ID") @RequestParam(required = false) Long ticketId,
-            @Parameter(description = "票务分类ID") @RequestParam(required = false) Integer categoryId,
+            @Parameter(description = "Order amount", required = false) @RequestParam(required = false) BigDecimal orderAmount,
+            @Parameter(description = "Ticket ID") @RequestParam(required = false) Long ticketId,
+            @Parameter(description = "Ticket category ID") @RequestParam(required = false) Integer categoryId,
             HttpServletRequest httpRequest) {
         Long userId = getUserIdFromRequest(httpRequest);
-        log.info("GET /api/coupons - 获取可用优惠券: userId={}, orderAmount={}, ticketId={}, categoryId={}",
+        log.info("GET /api/coupons - list available coupons: userId={}, orderAmount={}, ticketId={}, categoryId={}",
                 userId, orderAmount, ticketId, categoryId);
-        // 如果订单金额为空，设置默认值
         if (orderAmount == null) {
             orderAmount = BigDecimal.ZERO;
         }
@@ -58,131 +56,105 @@ public class CouponController {
         return Result.success(coupons);
     }
 
-    /**
-     * 获取领券中心
-     * GET /api/coupons/center
-     */
     @GetMapping("/center")
-    @Operation(summary = "获取领券中心", description = "获取当前用户可领取的优惠券模板列表")
+    @Operation(summary = "Get coupon center", description = "List claimable coupon templates for the current user")
     public Result<PageResult<CouponCenterResponse>> getCouponCenter(
-            @Parameter(description = "页码", example = "1") @RequestParam(defaultValue = "1") Integer page,
-            @Parameter(description = "每页数量", example = "10") @RequestParam(defaultValue = "10") Integer pageSize,
+            @Parameter(description = "Page", example = "1") @RequestParam(defaultValue = "1") Integer page,
+            @Parameter(description = "Page size", example = "10") @RequestParam(defaultValue = "10") Integer pageSize,
             HttpServletRequest httpRequest) {
         Long userId = getUserIdFromRequest(httpRequest);
-        log.info("GET /api/coupons/center - 获取领券中心: userId={}, page={}, pageSize={}", userId, page, pageSize);
+        log.info("GET /api/coupons/center - list coupon center: userId={}, page={}, pageSize={}", userId, page, pageSize);
         return Result.success(couponService.getCouponCenter(userId, page, pageSize));
     }
 
-    /**
-     * 获取用户优惠券列表
-     * GET /api/coupons/list
-     */
     @GetMapping("/list")
-    @Operation(summary = "获取用户优惠券列表", description = "获取用户的优惠券列表，支持状态筛选")
+    @Operation(summary = "Get user coupons", description = "List the current user's coupons")
     public Result<PageResult<UserCouponResponse>> getUserCouponList(
-            @Parameter(description = "优惠券状态: 0-未使用, 1-已使用, 2-已过期, 3-已失效")
-            @RequestParam(required = false) Integer status,
-            @Parameter(description = "页码", example = "1") @RequestParam(required = false, defaultValue = "1") Integer page,
-            @Parameter(description = "每页数量", example = "10") @RequestParam(required = false, defaultValue = "10") Integer pageSize,
+            @Parameter(description = "Coupon status: 0-unused, 1-used, 2-expired, 3-disabled") @RequestParam(required = false) Integer status,
+            @Parameter(description = "Page", example = "1") @RequestParam(required = false, defaultValue = "1") Integer page,
+            @Parameter(description = "Page size", example = "10") @RequestParam(required = false, defaultValue = "10") Integer pageSize,
             HttpServletRequest httpRequest) {
         Long userId = getUserIdFromRequest(httpRequest);
-        log.info("GET /api/coupons/list - 获取优惠券列表: userId={}, status={}, page={}, pageSize={}",
+        log.info("GET /api/coupons/list - list user coupons: userId={}, status={}, page={}, pageSize={}",
                 userId, status, page, pageSize);
         PageResult<UserCouponResponse> result = couponService.getUserCouponList(userId, status, page, pageSize);
         return Result.success(result);
     }
 
-    /**
-     * 领取优惠券
-     * POST /api/coupons/receive
-     */
     @PostMapping("/receive")
-    @Operation(summary = "领取优惠券", description = "用户领取指定优惠券")
+    @Operation(summary = "Receive coupon", description = "Claim a coupon template")
     public Result<Long> receiveCoupon(
-            @Parameter(description = "优惠券ID", required = true) @RequestParam Long couponId,
+            @Parameter(description = "Coupon template ID", required = true) @RequestParam Long couponId,
             HttpServletRequest httpRequest) {
         Long userId = getUserIdFromRequest(httpRequest);
-        log.info("POST /api/coupons/receive - 领取优惠券: userId={}, couponId={}", userId, couponId);
+        log.info("POST /api/coupons/receive - receive coupon: userId={}, couponId={}", userId, couponId);
         Long userCouponId = couponService.receiveCoupon(userId, couponId);
-        return Result.success("领取成功", userCouponId);
+        return Result.success("success", userCouponId);
     }
 
-    /**
-     * 使用优惠券
-     * POST /api/coupons/use
-     */
     @PostMapping("/use")
-    @Operation(summary = "使用优惠券", description = "在订单中使用优惠券")
+    @Operation(summary = "Use coupon", description = "Mark a user coupon as used")
     public Result<Void> useCoupon(
             @Valid @RequestBody UseCouponRequest request,
             HttpServletRequest httpRequest) {
         Long userId = getUserIdFromRequest(httpRequest);
-        log.info("POST /api/coupons/use - 使用优惠券: userId={}, userCouponId={}, orderId={}",
+        log.info("POST /api/coupons/use - use coupon: userId={}, userCouponId={}, orderId={}",
                 userId, request.getUserCouponId(), request.getOrderId());
         couponService.useCoupon(userId, request.getUserCouponId(), request.getOrderId());
-        return Result.success("优惠券使用成功", null);
+        return Result.success("success", null);
     }
 
-    /**
-     * 校验优惠券
-     * POST /api/coupons/validate
-     */
     @PostMapping("/validate")
-    @Operation(summary = "校验优惠券", description = "校验优惠券是否可用，返回优惠金额")
+    @Operation(summary = "Validate coupon", description = "Validate a claimed user coupon for the current order")
     public Result<ValidateCouponResponse> validateCoupon(
             @Valid @RequestBody ValidateCouponRequest request,
             HttpServletRequest httpRequest) {
         Long userId = getUserIdFromRequest(httpRequest);
-        log.info("POST /api/coupons/validate - 校验优惠券: userId={}, couponCode={}, orderAmount={}",
-                userId, request.getCouponCode(), request.getOrderAmount());
-        ValidateCouponResponse response = couponService.validateCoupon(userId, request);
+        log.info("POST /api/coupons/validate - validate coupon: userId={}, userCouponId={}, orderAmount={}",
+                userId, request.getUserCouponId(), request.getOrderAmount());
+        ValidateCouponResponse response = couponService.validateUserCoupon(
+                userId,
+                request.getUserCouponId(),
+                request.getOrderAmount(),
+                request.getTicketId(),
+                request.getCategoryId()
+        );
         return Result.success(response);
     }
 
-    /**
-     * 获取优惠券详情
-     * GET /api/coupons/{id}
-     */
     @GetMapping("/{id}")
-    @Operation(summary = "获取优惠券详情", description = "获取用户优惠券的详细信息")
+    @Operation(summary = "Get coupon detail", description = "Get detail for a claimed user coupon")
     public Result<UserCouponResponse> getUserCouponDetail(
-            @Parameter(description = "用户优惠券ID", required = true) @PathVariable("id") Long id,
+            @Parameter(description = "User coupon ID", required = true) @PathVariable("id") Long id,
             HttpServletRequest httpRequest) {
         Long userId = getUserIdFromRequest(httpRequest);
-        log.info("GET /api/coupons/{id} - 获取优惠券详情: userId={}, userCouponId={}", userId, id);
+        log.info("GET /api/coupons/{id} - get coupon detail: userId={}, userCouponId={}", userId, id);
         UserCouponResponse response = couponService.getUserCouponDetail(userId, id);
         return Result.success(response);
     }
 
-    /**
-     * 从请求中获取用户ID
-     */
     private Long getUserIdFromRequest(HttpServletRequest request) {
         String token = request.getHeader("Authorization");
-        
         if (token == null || token.isEmpty()) {
-            throw new BusinessException(ResultCode.TOKEN_INVALID, "请先登录");
+            throw new BusinessException(ResultCode.TOKEN_INVALID, "login required");
         }
-        
         if (token.startsWith("Bearer ")) {
             token = token.substring(7);
         }
-        
         if (token.isEmpty()) {
-            throw new BusinessException(ResultCode.TOKEN_INVALID, "Token无效");
+            throw new BusinessException(ResultCode.TOKEN_INVALID, "invalid token");
         }
-        
         try {
             Long userId = jwtUtils.getUserIdFromToken(token);
             if (userId == null) {
-                throw new BusinessException(ResultCode.TOKEN_INVALID, "Token解析失败");
+                throw new BusinessException(ResultCode.TOKEN_INVALID, "token parse failed");
             }
             return userId;
         } catch (BusinessException e) {
             throw e;
         } catch (Exception e) {
-            log.warn("Token解析异常: {}", e.getMessage());
-            throw new BusinessException(ResultCode.TOKEN_INVALID, "Token无效");
+            log.warn("token parse error: {}", e.getMessage());
+            throw new BusinessException(ResultCode.TOKEN_INVALID, "invalid token");
         }
     }
 }

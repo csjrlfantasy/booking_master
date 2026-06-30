@@ -4,7 +4,6 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.ticket.app.common.util.IdUtils;
 import com.ticket.app.entity.Order;
 import com.ticket.app.repository.order.OrderRepository;
-import com.ticket.app.service.user.UserIdentityService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -29,14 +28,11 @@ public class OrderServicePayCallbackSecurityTest {
     @Mock
     private OrderRepository orderRepository;
 
-    @Mock
-    private UserIdentityService userIdentityService;
-
     private OrderServiceImpl orderService;
 
     @BeforeEach
     void setUp() {
-        orderService = new OrderServiceImpl(orderRepository, null, null, null, null, null, userIdentityService);
+        orderService = new OrderServiceImpl(orderRepository, null, null, null, null, null);
     }
 
     /**

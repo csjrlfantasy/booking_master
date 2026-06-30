@@ -54,6 +54,24 @@ public class OrderServiceImpl implements OrderService {
     private final TicketPriceLevelRepository ticketPriceLevelRepository;
     private final UserIdentityService userIdentityService;
 
+    public OrderServiceImpl(
+            OrderRepository orderRepository,
+            OrderItemRepository orderItemRepository,
+            CouponService couponService,
+            TicketRepository ticketRepository,
+            TicketSessionRepository ticketSessionRepository,
+            TicketPriceLevelRepository ticketPriceLevelRepository) {
+        this(
+                orderRepository,
+                orderItemRepository,
+                couponService,
+                ticketRepository,
+                ticketSessionRepository,
+                ticketPriceLevelRepository,
+                null
+        );
+    }
+
     @Override
     @Transactional(rollbackFor = Exception.class)
     public CreateOrderResponse createOrder(Long userId, CreateOrderRequest request) {
