@@ -95,6 +95,16 @@ public class Order implements Serializable {
     private Long couponId;
 
     /**
+     * 用户优惠券ID
+     */
+    private Long userCouponId;
+
+    /**
+     * 优惠券名称
+     */
+    private String couponName;
+
+    /**
      * 优惠券优惠金额
      */
     private BigDecimal couponAmount;

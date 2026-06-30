@@ -45,6 +45,9 @@ public class CreateOrderRequest {
     @Schema(description = "优惠券ID", example = "1")
     private Long couponId;
 
+    @Schema(description = "用户优惠券ID", example = "301")
+    private Long userCouponId;
+
     @Schema(description = "用户备注", example = "需要发票")
     private String userRemark;
 

@@ -5,6 +5,7 @@ import com.ticket.app.common.Result;
 import com.ticket.app.common.ResultCode;
 import com.ticket.app.common.exception.BusinessException;
 import com.ticket.app.common.util.JwtUtils;
+import com.ticket.app.controller.coupon.dto.CouponCenterResponse;
 import com.ticket.app.controller.coupon.dto.UserCouponResponse;
 import com.ticket.app.controller.coupon.dto.UseCouponRequest;
 import com.ticket.app.controller.coupon.dto.ValidateCouponRequest;
@@ -55,6 +56,21 @@ public class CouponController {
         }
         List<UserCouponResponse> coupons = couponService.getAvailableCoupons(userId, orderAmount, ticketId, categoryId);
         return Result.success(coupons);
+    }
+
+    /**
+     * 获取领券中心
+     * GET /api/coupons/center
+     */
+    @GetMapping("/center")
+    @Operation(summary = "获取领券中心", description = "获取当前用户可领取的优惠券模板列表")
+    public Result<PageResult<CouponCenterResponse>> getCouponCenter(
+            @Parameter(description = "页码", example = "1") @RequestParam(defaultValue = "1") Integer page,
+            @Parameter(description = "每页数量", example = "10") @RequestParam(defaultValue = "10") Integer pageSize,
+            HttpServletRequest httpRequest) {
+        Long userId = getUserIdFromRequest(httpRequest);
+        log.info("GET /api/coupons/center - 获取领券中心: userId={}, page={}, pageSize={}", userId, page, pageSize);
+        return Result.success(couponService.getCouponCenter(userId, page, pageSize));
     }
 
     /**

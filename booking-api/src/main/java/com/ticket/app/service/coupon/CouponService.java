@@ -1,5 +1,6 @@
 package com.ticket.app.service.coupon;
 
+import com.ticket.app.controller.coupon.dto.CouponCenterResponse;
 import com.ticket.app.controller.coupon.dto.ValidateCouponRequest;
 import com.ticket.app.controller.coupon.dto.ValidateCouponResponse;
 import com.ticket.app.controller.coupon.dto.UserCouponResponse;
@@ -11,6 +12,11 @@ import java.util.List;
  * 优惠券服务接口
  */
 public interface CouponService {
+
+    /**
+     * 获取领券中心列表
+     */
+    PageResult<CouponCenterResponse> getCouponCenter(Long userId, Integer page, Integer pageSize);
 
     /**
      * 领取优惠券
@@ -44,6 +50,11 @@ public interface CouponService {
     List<UserCouponResponse> getAvailableCoupons(Long userId, java.math.BigDecimal orderAmount, Long ticketId, Integer categoryId);
 
     /**
+     * 校验用户优惠券是否可用于当前订单
+     */
+    ValidateCouponResponse validateUserCoupon(Long userId, Long userCouponId, java.math.BigDecimal orderAmount, Long ticketId, Integer categoryId);
+
+    /**
      * 校验优惠券是否可用
      *
      * @param userId 用户ID
@@ -62,12 +73,22 @@ public interface CouponService {
     void useCoupon(Long userId, Long userCouponId, Long orderId);
 
     /**
+     * 标记用户优惠券已使用
+     */
+    void markCouponUsed(Long userId, Long userCouponId, Long orderId);
+
+    /**
      * 退还优惠券(订单取消时)
      *
      * @param userId 用户ID
      * @param orderId 订单ID
      */
     void returnCoupon(Long userId, Long orderId);
+
+    /**
+     * 退还优惠券
+     */
+    void returnCoupon(Long userId, Long orderId, boolean forceExpireIfOutOfWindow);
 
     /**
      * 获取优惠券详情

@@ -8,6 +8,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.ticket.app.common.PageResult;
 import com.ticket.app.common.ResultCode;
 import com.ticket.app.common.exception.BusinessException;
+import com.ticket.app.controller.coupon.dto.CouponCenterResponse;
 import com.ticket.app.controller.coupon.dto.UserCouponResponse;
 import com.ticket.app.controller.coupon.dto.ValidateCouponRequest;
 import com.ticket.app.controller.coupon.dto.ValidateCouponResponse;
@@ -26,6 +27,7 @@ import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 /**
@@ -116,6 +118,25 @@ public class CouponServiceImpl implements CouponService {
     }
 
     @Override
+    public PageResult<CouponCenterResponse> getCouponCenter(Long userId, Integer page, Integer pageSize) {
+        Page<Coupon> pageParam = new Page<>(page, pageSize);
+        LocalDateTime now = LocalDateTime.now();
+
+        LambdaQueryWrapper<Coupon> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(Coupon::getStatus, Coupon.STATUS_ACTIVE)
+                .and(q -> q.isNull(Coupon::getReceiveStartTime).or().le(Coupon::getReceiveStartTime, now))
+                .and(q -> q.isNull(Coupon::getReceiveEndTime).or().ge(Coupon::getReceiveEndTime, now))
+                .orderByDesc(Coupon::getCreatedAt);
+
+        IPage<Coupon> pageResult = couponRepository.selectPage(pageParam, wrapper);
+        List<CouponCenterResponse> list = pageResult.getRecords().stream()
+                .map(coupon -> buildCouponCenterResponse(userId, coupon))
+                .collect(Collectors.toList());
+
+        return PageResult.of(list, pageResult.getTotal(), (int) pageResult.getCurrent(), (int) pageResult.getSize());
+    }
+
+    @Override
     public PageResult<UserCouponResponse> getUserCouponList(Long userId, Integer status, Integer page, Integer pageSize) {
         Page<UserCoupon> pageParam = new Page<>(page, pageSize);
         
@@ -185,6 +206,46 @@ public class CouponServiceImpl implements CouponService {
         }
         
         return availableCoupons;
+    }
+
+    @Override
+    public ValidateCouponResponse validateUserCoupon(Long userId, Long userCouponId, BigDecimal orderAmount, Long ticketId, Integer categoryId) {
+        UserCoupon userCoupon = userCouponRepository.selectById(userCouponId);
+        if (userCoupon == null || !Objects.equals(userId, userCoupon.getUserId())) {
+            throw new BusinessException(ResultCode.COUPON_NOT_FOUND, "用户优惠券不存在");
+        }
+
+        if (!UserCoupon.STATUS_UNUSED.equals(userCoupon.getStatus())) {
+            throw new BusinessException(ResultCode.COUPON_ALREADY_USED, "优惠券已使用");
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+        if (userCoupon.getValidStartTime() != null && now.isBefore(userCoupon.getValidStartTime())) {
+            throw new BusinessException(ResultCode.COUPON_NOT_USABLE, "优惠券尚未生效");
+        }
+        if (userCoupon.getValidEndTime() != null && now.isAfter(userCoupon.getValidEndTime())) {
+            throw new BusinessException(ResultCode.COUPON_EXPIRED, "优惠券已过期");
+        }
+        if (userCoupon.getMinOrderAmount() != null && orderAmount.compareTo(userCoupon.getMinOrderAmount()) < 0) {
+            throw new BusinessException(ResultCode.COUPON_NOT_USABLE, "订单金额不满足最低消费金额");
+        }
+
+        Coupon coupon = couponRepository.selectById(userCoupon.getCouponId());
+        if (coupon == null) {
+            throw new BusinessException(ResultCode.COUPON_NOT_FOUND, "优惠券模板不存在");
+        }
+        validateCouponScope(coupon, ticketId, categoryId);
+
+        ValidateCouponResponse response = new ValidateCouponResponse();
+        response.setUsable(true);
+        response.setUserCouponId(userCoupon.getId());
+        response.setCouponId(coupon.getId());
+        response.setCouponName(coupon.getName());
+        response.setCouponType(coupon.getCouponType());
+        response.setCouponValue(coupon.getCouponValue());
+        response.setDiscountAmount(calculateDiscountAmount(userCoupon, orderAmount));
+        response.setMinOrderAmount(coupon.getMinOrderAmount());
+        return response;
     }
 
     @Override
@@ -285,7 +346,19 @@ public class CouponServiceImpl implements CouponService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
+    public void markCouponUsed(Long userId, Long userCouponId, Long orderId) {
+        useCoupon(userId, userCouponId, orderId);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
     public void returnCoupon(Long userId, Long orderId) {
+        returnCoupon(userId, orderId, false);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void returnCoupon(Long userId, Long orderId, boolean forceExpireIfOutOfWindow) {
         LambdaQueryWrapper<UserCoupon> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(UserCoupon::getUserId, userId)
                 .eq(UserCoupon::getOrderId, orderId)
@@ -297,7 +370,13 @@ public class CouponServiceImpl implements CouponService {
             return;
         }
         
-        userCoupon.setStatus(UserCoupon.STATUS_UNUSED);
+        LocalDateTime now = LocalDateTime.now();
+        boolean outOfWindow = userCoupon.getValidEndTime() != null && now.isAfter(userCoupon.getValidEndTime());
+        if (forceExpireIfOutOfWindow && outOfWindow) {
+            userCoupon.setStatus(UserCoupon.STATUS_EXPIRED);
+        } else {
+            userCoupon.setStatus(UserCoupon.STATUS_UNUSED);
+        }
         userCoupon.setUseTime(null);
         userCoupon.setOrderId(null);
         userCouponRepository.updateById(userCoupon);
@@ -347,6 +426,57 @@ public class CouponServiceImpl implements CouponService {
         }
         
         return response;
+    }
+
+    private CouponCenterResponse buildCouponCenterResponse(Long userId, Coupon coupon) {
+        CouponCenterResponse response = new CouponCenterResponse();
+        response.setCouponId(coupon.getId());
+        response.setCouponName(coupon.getName());
+        response.setCouponType(coupon.getCouponType());
+        response.setCouponValue(coupon.getCouponValue());
+        response.setMinOrderAmount(coupon.getMinOrderAmount());
+        response.setRemainCount(coupon.getRemainCount());
+        response.setPerLimit(coupon.getPerLimit());
+        response.setReceiveStartTime(coupon.getReceiveStartTime());
+        response.setReceiveEndTime(coupon.getReceiveEndTime());
+
+        LambdaQueryWrapper<UserCoupon> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(UserCoupon::getUserId, userId)
+                .eq(UserCoupon::getCouponId, coupon.getId())
+                .ne(UserCoupon::getStatus, UserCoupon.STATUS_DISABLED);
+        response.setReceived(userCouponRepository.selectCount(wrapper) > 0);
+        return response;
+    }
+
+    private void validateCouponScope(Coupon coupon, Long ticketId, Integer categoryId) {
+        if (Coupon.SCOPE_ALL.equals(coupon.getApplicableScope())) {
+            return;
+        }
+        if (Coupon.SCOPE_TICKET.equals(coupon.getApplicableScope())) {
+            if (ticketId == null) {
+                throw new BusinessException(ResultCode.COUPON_NOT_USABLE, "优惠券不适用于当前票务");
+            }
+            String applicableTickets = coupon.getApplicableTickets();
+            if (applicableTickets != null) {
+                JSONArray ticketIds = JSON.parseArray(applicableTickets);
+                if (!ticketIds.contains(ticketId)) {
+                    throw new BusinessException(ResultCode.COUPON_NOT_USABLE, "优惠券不适用于当前票务");
+                }
+            }
+            return;
+        }
+        if (Coupon.SCOPE_CATEGORY.equals(coupon.getApplicableScope())) {
+            if (categoryId == null) {
+                throw new BusinessException(ResultCode.COUPON_NOT_USABLE, "优惠券不适用于当前分类");
+            }
+            String applicableCategories = coupon.getApplicableCategories();
+            if (applicableCategories != null) {
+                JSONArray categoryIds = JSON.parseArray(applicableCategories);
+                if (!categoryIds.contains(categoryId)) {
+                    throw new BusinessException(ResultCode.COUPON_NOT_USABLE, "优惠券不适用于当前分类");
+                }
+            }
+        }
     }
 
     /**

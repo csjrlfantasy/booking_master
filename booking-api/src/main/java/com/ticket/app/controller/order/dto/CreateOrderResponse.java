@@ -22,6 +22,15 @@ public class CreateOrderResponse {
     @Schema(description = "优惠金额", example = "50.00")
     private java.math.BigDecimal discountAmount;
 
+    @Schema(description = "用户优惠券ID", example = "301")
+    private Long userCouponId;
+
+    @Schema(description = "优惠券ID", example = "101")
+    private Long couponId;
+
+    @Schema(description = "优惠券优惠金额", example = "30.00")
+    private java.math.BigDecimal couponAmount;
+
     @Schema(description = "实付金额", example = "548.00")
     private java.math.BigDecimal payAmount;
 

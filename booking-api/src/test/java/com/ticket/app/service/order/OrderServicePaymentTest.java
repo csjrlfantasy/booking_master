@@ -13,6 +13,7 @@ import com.ticket.app.repository.ticket.TicketPriceLevelRepository;
 import com.ticket.app.repository.ticket.TicketRepository;
 import com.ticket.app.repository.ticket.TicketSessionRepository;
 import com.ticket.app.service.coupon.CouponService;
+import com.ticket.app.service.user.UserIdentityService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -63,6 +64,9 @@ public class OrderServicePaymentTest {
     @Mock
     private TicketPriceLevelRepository ticketPriceLevelRepository;
 
+    @Mock
+    private UserIdentityService userIdentityService;
+
     private OrderServiceImpl orderService;
 
     @BeforeEach
@@ -73,7 +77,8 @@ public class OrderServicePaymentTest {
             couponService, 
             ticketRepository, 
             ticketSessionRepository,
-            ticketPriceLevelRepository
+            ticketPriceLevelRepository,
+            userIdentityService
         );
     }
 
