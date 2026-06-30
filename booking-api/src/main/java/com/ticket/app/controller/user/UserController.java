@@ -35,6 +35,10 @@ public class UserController {
     private final UserIdentityService userIdentityService;
     private final JwtUtils jwtUtils;
 
+    public UserController(UserService userService, JwtUtils jwtUtils) {
+        this(userService, null, jwtUtils);
+    }
+
     @PostMapping("/register")
     @Operation(summary = "用户注册", description = "注册新用户")
     public Result<Long> register(@Valid @RequestBody UserRegisterRequest request) {
