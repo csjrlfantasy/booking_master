@@ -7,6 +7,7 @@ import com.ticket.app.repository.order.OrderRepository;
 import com.ticket.app.repository.ticket.TicketPriceLevelRepository;
 import com.ticket.app.repository.ticket.TicketRepository;
 import com.ticket.app.repository.ticket.TicketSessionRepository;
+import com.ticket.app.service.coupon.CouponService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -41,6 +42,9 @@ class OrderExpirationServiceTest {
     @Mock
     private TicketPriceLevelRepository ticketPriceLevelRepository;
 
+    @Mock
+    private CouponService couponService;
+
     private OrderExpirationService service;
 
     @BeforeEach
@@ -50,16 +54,20 @@ class OrderExpirationServiceTest {
                 orderItemRepository,
                 ticketRepository,
                 ticketSessionRepository,
-                ticketPriceLevelRepository
+                ticketPriceLevelRepository,
+                couponService
         );
     }
 
     @Test
-    void cancelExpiredPendingOrdersShouldCancelAndRestoreInventory() {
+    void cancelExpiredPendingOrdersShouldCancelRestoreInventoryAndReturnCoupon() {
         Order order = new Order();
         order.setId(88L);
+        order.setUserId(1001L);
         order.setTicketId(1L);
         order.setSessionId(10L);
+        order.setCouponId(101L);
+        order.setUserCouponId(301L);
         order.setOrderStatus(Order.STATUS_PENDING_PAY);
         order.setPayStatus(Order.PAY_STATUS_UNPAID);
         order.setExpireTime(LocalDateTime.now().minusMinutes(1));
@@ -80,6 +88,7 @@ class OrderExpirationServiceTest {
         assertEquals(Order.STATUS_CANCELLED, captor.getValue().getOrderStatus());
         assertEquals("支付超时自动取消", captor.getValue().getCancelReason());
         assertTrue(captor.getValue().getCancelTime() != null);
+        verify(couponService).returnCoupon(1001L, 88L);
         verify(ticketPriceLevelRepository).restoreStock(100L, 2);
         verify(ticketRepository).restoreStock(1L, 2);
         verify(ticketSessionRepository).restoreCapacity(10L, 2);

@@ -30,9 +30,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
-/**
- * 优惠券服务实现
- */
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -44,23 +41,17 @@ public class CouponServiceImpl implements CouponService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public Long receiveCoupon(Long userId, Long couponId) {
-        // 查询优惠券
         Coupon coupon = couponRepository.selectById(couponId);
         if (coupon == null) {
             throw new BusinessException(ResultCode.COUPON_NOT_FOUND, "优惠券不存在");
         }
-        
-        // 检查优惠券状态
         if (!Coupon.STATUS_ACTIVE.equals(coupon.getStatus())) {
             throw new BusinessException(ResultCode.COUPON_NOT_USABLE, "优惠券不可领取");
         }
-        
-        // 检查库存
         if (coupon.getRemainCount() <= 0) {
             throw new BusinessException(ResultCode.COUPON_NOT_USABLE, "优惠券已领完");
         }
-        
-        // 检查领取时间
+
         LocalDateTime now = LocalDateTime.now();
         if (coupon.getReceiveStartTime() != null && now.isBefore(coupon.getReceiveStartTime())) {
             throw new BusinessException(ResultCode.COUPON_NOT_USABLE, "优惠券领取尚未开始");
@@ -68,22 +59,18 @@ public class CouponServiceImpl implements CouponService {
         if (coupon.getReceiveEndTime() != null && now.isAfter(coupon.getReceiveEndTime())) {
             throw new BusinessException(ResultCode.COUPON_NOT_USABLE, "优惠券领取已结束");
         }
-        
-        // 检查用户已领取数量
+
         LambdaQueryWrapper<UserCoupon> userCouponWrapper = new LambdaQueryWrapper<>();
         userCouponWrapper.eq(UserCoupon::getUserId, userId)
                 .eq(UserCoupon::getCouponId, couponId)
                 .ne(UserCoupon::getStatus, UserCoupon.STATUS_DISABLED);
         Long receivedCount = userCouponRepository.selectCount(userCouponWrapper);
-        
         if (receivedCount >= coupon.getPerLimit()) {
             throw new BusinessException(ResultCode.COUPON_REACH_LIMIT, "已达到领取上限");
         }
-        
-        // 计算有效期
+
         LocalDateTime validStartTime;
         LocalDateTime validEndTime;
-        
         if (Coupon.VALID_TYPE_FIXED.equals(coupon.getValidityType())) {
             validStartTime = coupon.getValidStartDate().atStartOfDay();
             validEndTime = coupon.getValidEndDate().atTime(23, 59, 59);
@@ -91,8 +78,7 @@ public class CouponServiceImpl implements CouponService {
             validStartTime = now;
             validEndTime = now.plusDays(coupon.getValidDays());
         }
-        
-        // 创建用户优惠券
+
         UserCoupon userCoupon = new UserCoupon();
         userCoupon.setUserId(userId);
         userCoupon.setCouponId(couponId);
@@ -105,15 +91,12 @@ public class CouponServiceImpl implements CouponService {
         userCoupon.setValidEndTime(validEndTime);
         userCoupon.setStatus(UserCoupon.STATUS_UNUSED);
         userCoupon.setSource(UserCoupon.SOURCE_MANUAL);
-        
         userCouponRepository.insert(userCoupon);
-        
-        // 扣减库存
+
         coupon.setRemainCount(coupon.getRemainCount() - 1);
         couponRepository.updateById(coupon);
-        
+
         log.info("领取优惠券成功: userId={}, couponId={}, userCouponId={}", userId, couponId, userCoupon.getId());
-        
         return userCoupon.getId();
     }
 
@@ -139,96 +122,80 @@ public class CouponServiceImpl implements CouponService {
     @Override
     public PageResult<UserCouponResponse> getUserCouponList(Long userId, Integer status, Integer page, Integer pageSize) {
         Page<UserCoupon> pageParam = new Page<>(page, pageSize);
-        
+
         LambdaQueryWrapper<UserCoupon> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(UserCoupon::getUserId, userId);
-        
         if (status != null) {
             wrapper.eq(UserCoupon::getStatus, status);
         }
-        
         wrapper.orderByDesc(UserCoupon::getCreatedAt);
-        
+
         IPage<UserCoupon> pageResult = userCouponRepository.selectPage(pageParam, wrapper);
-        
         List<UserCouponResponse> list = pageResult.getRecords().stream()
                 .map(this::buildUserCouponResponse)
                 .collect(Collectors.toList());
-        
+
         return PageResult.of(list, pageResult.getTotal(), (int) pageResult.getCurrent(), (int) pageResult.getSize());
     }
 
     @Override
     public List<UserCouponResponse> getAvailableCoupons(Long userId, BigDecimal orderAmount, Long ticketId, Integer categoryId) {
         LocalDateTime now = LocalDateTime.now();
-        
+
         LambdaQueryWrapper<UserCoupon> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(UserCoupon::getUserId, userId)
                 .eq(UserCoupon::getStatus, UserCoupon.STATUS_UNUSED)
+                .isNull(UserCoupon::getOrderId)
                 .le(UserCoupon::getValidStartTime, now)
                 .ge(UserCoupon::getValidEndTime, now);
-        
+
         List<UserCoupon> coupons = userCouponRepository.selectList(wrapper);
-        
-        // 过滤符合条件的优惠券
         List<UserCouponResponse> availableCoupons = new ArrayList<>();
-        for (UserCoupon uc : coupons) {
-            // 检查订单金额是否满足最低消费
-            if (uc.getMinOrderAmount() != null && orderAmount.compareTo(uc.getMinOrderAmount()) < 0) {
+        for (UserCoupon userCoupon : coupons) {
+            if (userCoupon.getMinOrderAmount() != null && orderAmount.compareTo(userCoupon.getMinOrderAmount()) < 0) {
                 continue;
             }
-            
-            // 检查适用范围
-            Coupon coupon = couponRepository.selectById(uc.getCouponId());
-            if (coupon == null) continue;
-            
+
+            Coupon coupon = couponRepository.selectById(userCoupon.getCouponId());
+            if (coupon == null) {
+                continue;
+            }
             if (Coupon.SCOPE_ALL.equals(coupon.getApplicableScope())) {
-                // 全场通用
+                // no extra filter
             } else if (Coupon.SCOPE_TICKET.equals(coupon.getApplicableScope())) {
-                // 指定票务
-                if (ticketId == null) continue;
+                if (ticketId == null) {
+                    continue;
+                }
                 String applicableTickets = coupon.getApplicableTickets();
                 if (applicableTickets != null) {
                     JSONArray ticketIds = JSON.parseArray(applicableTickets);
-                    if (!ticketIds.contains(ticketId)) continue;
+                    if (!ticketIds.contains(ticketId)) {
+                        continue;
+                    }
                 }
             } else if (Coupon.SCOPE_CATEGORY.equals(coupon.getApplicableScope())) {
-                // 指定分类
-                if (categoryId == null) continue;
+                if (categoryId == null) {
+                    continue;
+                }
                 String applicableCategories = coupon.getApplicableCategories();
                 if (applicableCategories != null) {
                     JSONArray categoryIds = JSON.parseArray(applicableCategories);
-                    if (!categoryIds.contains(categoryId)) continue;
+                    if (!categoryIds.contains(categoryId)) {
+                        continue;
+                    }
                 }
             }
-            
-            availableCoupons.add(buildUserCouponResponse(uc));
+
+            availableCoupons.add(buildUserCouponResponse(userCoupon));
         }
-        
+
         return availableCoupons;
     }
 
     @Override
     public ValidateCouponResponse validateUserCoupon(Long userId, Long userCouponId, BigDecimal orderAmount, Long ticketId, Integer categoryId) {
-        UserCoupon userCoupon = userCouponRepository.selectById(userCouponId);
-        if (userCoupon == null || !Objects.equals(userId, userCoupon.getUserId())) {
-            throw new BusinessException(ResultCode.COUPON_NOT_FOUND, "用户优惠券不存在");
-        }
-
-        if (!UserCoupon.STATUS_UNUSED.equals(userCoupon.getStatus())) {
-            throw new BusinessException(ResultCode.COUPON_ALREADY_USED, "优惠券已使用");
-        }
-
-        LocalDateTime now = LocalDateTime.now();
-        if (userCoupon.getValidStartTime() != null && now.isBefore(userCoupon.getValidStartTime())) {
-            throw new BusinessException(ResultCode.COUPON_NOT_USABLE, "优惠券尚未生效");
-        }
-        if (userCoupon.getValidEndTime() != null && now.isAfter(userCoupon.getValidEndTime())) {
-            throw new BusinessException(ResultCode.COUPON_EXPIRED, "优惠券已过期");
-        }
-        if (userCoupon.getMinOrderAmount() != null && orderAmount.compareTo(userCoupon.getMinOrderAmount()) < 0) {
-            throw new BusinessException(ResultCode.COUPON_NOT_USABLE, "订单金额不满足最低消费金额");
-        }
+        UserCoupon userCoupon = requireOwnedCoupon(userId, userCouponId);
+        ensureCouponCanBeApplied(userCoupon, orderAmount);
 
         Coupon coupon = couponRepository.selectById(userCoupon.getCouponId());
         if (coupon == null) {
@@ -249,6 +216,20 @@ public class CouponServiceImpl implements CouponService {
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void bindCouponToOrder(Long userId, Long userCouponId, Long orderId) {
+        UserCoupon userCoupon = requireOwnedCoupon(userId, userCouponId);
+        ensureCouponCanBeApplied(userCoupon, userCoupon.getMinOrderAmount() == null ? BigDecimal.ZERO : userCoupon.getMinOrderAmount());
+        if (userCoupon.getOrderId() != null && !Objects.equals(orderId, userCoupon.getOrderId())) {
+            throw new BusinessException(ResultCode.COUPON_NOT_USABLE, "优惠券已绑定其他订单");
+        }
+
+        userCoupon.setOrderId(orderId);
+        userCouponRepository.updateById(userCoupon);
+        log.info("绑定优惠券到待支付订单: userId={}, userCouponId={}, orderId={}", userId, userCouponId, orderId);
+    }
+
+    @Override
     public ValidateCouponResponse validateCoupon(Long userId, ValidateCouponRequest request) {
         if (request.getUserCouponId() != null) {
             return validateUserCoupon(
@@ -261,18 +242,21 @@ public class CouponServiceImpl implements CouponService {
         }
 
         ValidateCouponResponse response = new ValidateCouponResponse();
-        
-        // 尝试通过优惠券码查找用户优惠券
+        if (request.getCouponCode() == null || request.getCouponCode().trim().isEmpty()) {
+            response.setUsable(false);
+            response.setReason("请提供 userCouponId");
+            return response;
+        }
+
         LambdaQueryWrapper<UserCoupon> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(UserCoupon::getUserId, userId)
-                .eq(UserCoupon::getStatus, UserCoupon.STATUS_UNUSED);
-        
-        // 如果传入的是数字ID
+                .eq(UserCoupon::getStatus, UserCoupon.STATUS_UNUSED)
+                .isNull(UserCoupon::getOrderId);
+
         try {
             Long couponId = Long.parseLong(request.getCouponCode());
             wrapper.eq(UserCoupon::getCouponId, couponId);
-        } catch (NumberFormatException e) {
-            // 如果传入的是优惠券码，需要先查询优惠券
+        } catch (NumberFormatException exception) {
             LambdaQueryWrapper<Coupon> couponWrapper = new LambdaQueryWrapper<>();
             couponWrapper.eq(Coupon::getName, request.getCouponCode());
             Coupon coupon = couponRepository.selectOne(couponWrapper);
@@ -280,77 +264,48 @@ public class CouponServiceImpl implements CouponService {
                 wrapper.eq(UserCoupon::getCouponId, coupon.getId());
             }
         }
-        
+
         UserCoupon userCoupon = userCouponRepository.selectOne(wrapper);
-        
         if (userCoupon == null) {
             response.setUsable(false);
-            response.setReason("优惠券不存在或已使用");
+            response.setReason("优惠券不存在或不可用");
             return response;
         }
-        
-        // 检查有效期
-        LocalDateTime now = LocalDateTime.now();
-        if (now.isBefore(userCoupon.getValidStartTime())) {
+
+        try {
+            return validateUserCoupon(
+                    userId,
+                    userCoupon.getId(),
+                    request.getOrderAmount(),
+                    request.getTicketId(),
+                    request.getCategoryId()
+            );
+        } catch (BusinessException exception) {
             response.setUsable(false);
-            response.setReason("优惠券尚未生效");
+            response.setReason(exception.getMessage());
             return response;
         }
-        if (now.isAfter(userCoupon.getValidEndTime())) {
-            response.setUsable(false);
-            response.setReason("优惠券已过期");
-            return response;
-        }
-        
-        // 检查订单金额
-        if (userCoupon.getMinOrderAmount() != null && 
-            request.getOrderAmount().compareTo(userCoupon.getMinOrderAmount()) < 0) {
-            response.setUsable(false);
-            response.setReason("订单金额不满足最低消费" + userCoupon.getMinOrderAmount() + "元");
-            return response;
-        }
-        
-        // 计算优惠金额
-        BigDecimal discountAmount = calculateDiscountAmount(userCoupon, request.getOrderAmount());
-        
-        response.setUsable(true);
-        response.setUserCouponId(userCoupon.getId());
-        response.setCouponId(userCoupon.getCouponId());
-        response.setCouponName(userCoupon.getCouponName());
-        response.setCouponType(userCoupon.getCouponType());
-        response.setCouponValue(userCoupon.getCouponValue());
-        response.setDiscountAmount(discountAmount);
-        response.setMinOrderAmount(userCoupon.getMinOrderAmount());
-        
-        return response;
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void useCoupon(Long userId, Long userCouponId, Long orderId) {
-        UserCoupon userCoupon = userCouponRepository.selectById(userCouponId);
-        if (userCoupon == null) {
-            throw new BusinessException(ResultCode.COUPON_NOT_FOUND, "用户优惠券不存在");
-        }
-        
-        if (!userCoupon.getUserId().equals(userId)) {
-            throw new BusinessException(ResultCode.PARAM_ERROR, "无权使用此优惠券");
-        }
-        
+        UserCoupon userCoupon = requireOwnedCoupon(userId, userCouponId);
         if (!UserCoupon.STATUS_UNUSED.equals(userCoupon.getStatus())) {
             throw new BusinessException(ResultCode.COUPON_ALREADY_USED, "优惠券已使用");
         }
-        
-        LocalDateTime now = LocalDateTime.now();
-        if (now.isAfter(userCoupon.getValidEndTime())) {
+        if (userCoupon.getValidEndTime() != null && LocalDateTime.now().isAfter(userCoupon.getValidEndTime())) {
             throw new BusinessException(ResultCode.COUPON_EXPIRED, "优惠券已过期");
         }
-        
+        if (userCoupon.getOrderId() != null && !Objects.equals(orderId, userCoupon.getOrderId())) {
+            throw new BusinessException(ResultCode.COUPON_NOT_USABLE, "优惠券已绑定其他订单");
+        }
+
         userCoupon.setStatus(UserCoupon.STATUS_USED);
-        userCoupon.setUseTime(now);
+        userCoupon.setUseTime(LocalDateTime.now());
         userCoupon.setOrderId(orderId);
         userCouponRepository.updateById(userCoupon);
-        
+
         log.info("使用优惠券: userId={}, userCouponId={}, orderId={}", userId, userCouponId, orderId);
     }
 
@@ -371,40 +326,68 @@ public class CouponServiceImpl implements CouponService {
     public void returnCoupon(Long userId, Long orderId, boolean forceExpireIfOutOfWindow) {
         LambdaQueryWrapper<UserCoupon> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(UserCoupon::getUserId, userId)
-                .eq(UserCoupon::getOrderId, orderId)
-                .eq(UserCoupon::getStatus, UserCoupon.STATUS_USED);
-        
+                .eq(UserCoupon::getOrderId, orderId);
+
         UserCoupon userCoupon = userCouponRepository.selectOne(wrapper);
         if (userCoupon == null) {
             log.warn("退还优惠券失败，未找到对应优惠券: userId={}, orderId={}", userId, orderId);
             return;
         }
-        
-        userCoupon.setStatus(UserCoupon.STATUS_UNUSED);
+
+        boolean releasable = UserCoupon.STATUS_UNUSED.equals(userCoupon.getStatus())
+                || UserCoupon.STATUS_USED.equals(userCoupon.getStatus());
+        if (!releasable) {
+            log.warn("退还优惠券失败，状态不支持释放: userId={}, orderId={}, status={}", userId, orderId, userCoupon.getStatus());
+            return;
+        }
+
+        boolean shouldExpire = forceExpireIfOutOfWindow
+                && userCoupon.getValidEndTime() != null
+                && LocalDateTime.now().isAfter(userCoupon.getValidEndTime());
+
+        userCoupon.setStatus(shouldExpire ? UserCoupon.STATUS_EXPIRED : UserCoupon.STATUS_UNUSED);
         userCoupon.setUseTime(null);
         userCoupon.setOrderId(null);
         userCouponRepository.updateById(userCoupon);
-        
-        log.info("退还优惠券成功: userId={}, userCouponId={}, orderId={}", userId, userCoupon.getId(), orderId);
+
+        log.info("退还优惠券成功: userId={}, userCouponId={}, orderId={}, expired={}",
+                userId, userCoupon.getId(), orderId, shouldExpire);
     }
 
     @Override
     public UserCouponResponse getUserCouponDetail(Long userId, Long userCouponId) {
-        UserCoupon userCoupon = userCouponRepository.selectById(userCouponId);
-        if (userCoupon == null) {
-            throw new BusinessException(ResultCode.COUPON_NOT_FOUND, "用户优惠券不存在");
-        }
-        
-        if (!userCoupon.getUserId().equals(userId)) {
-            throw new BusinessException(ResultCode.PARAM_ERROR, "无权查看此优惠券");
-        }
-        
+        UserCoupon userCoupon = requireOwnedCoupon(userId, userCouponId);
         return buildUserCouponResponse(userCoupon);
     }
 
-    /**
-     * 构建用户优惠券响应
-     */
+    private UserCoupon requireOwnedCoupon(Long userId, Long userCouponId) {
+        UserCoupon userCoupon = userCouponRepository.selectById(userCouponId);
+        if (userCoupon == null || !Objects.equals(userId, userCoupon.getUserId())) {
+            throw new BusinessException(ResultCode.COUPON_NOT_FOUND, "用户优惠券不存在");
+        }
+        return userCoupon;
+    }
+
+    private void ensureCouponCanBeApplied(UserCoupon userCoupon, BigDecimal orderAmount) {
+        if (!UserCoupon.STATUS_UNUSED.equals(userCoupon.getStatus())) {
+            throw new BusinessException(ResultCode.COUPON_ALREADY_USED, "优惠券已使用");
+        }
+        if (userCoupon.getOrderId() != null) {
+            throw new BusinessException(ResultCode.COUPON_NOT_USABLE, "优惠券已绑定其他订单");
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+        if (userCoupon.getValidStartTime() != null && now.isBefore(userCoupon.getValidStartTime())) {
+            throw new BusinessException(ResultCode.COUPON_NOT_USABLE, "优惠券尚未生效");
+        }
+        if (userCoupon.getValidEndTime() != null && now.isAfter(userCoupon.getValidEndTime())) {
+            throw new BusinessException(ResultCode.COUPON_EXPIRED, "优惠券已过期");
+        }
+        if (userCoupon.getMinOrderAmount() != null && orderAmount.compareTo(userCoupon.getMinOrderAmount()) < 0) {
+            throw new BusinessException(ResultCode.COUPON_NOT_USABLE, "订单金额不满足最低消费金额");
+        }
+    }
+
     private UserCouponResponse buildUserCouponResponse(UserCoupon userCoupon) {
         UserCouponResponse response = new UserCouponResponse();
         response.setId(userCoupon.getId());
@@ -422,13 +405,12 @@ public class CouponServiceImpl implements CouponService {
         response.setStatus(userCoupon.getStatus());
         response.setStatusText(getStatusText(userCoupon.getStatus()));
         response.setSource(userCoupon.getSource());
-        
-        // 计算剩余有效期天数
+
         if (userCoupon.getValidEndTime() != null) {
             long days = ChronoUnit.DAYS.between(LocalDateTime.now(), userCoupon.getValidEndTime());
             response.setRemainingDays((int) Math.max(0, days));
         }
-        
+
         return response;
     }
 
@@ -483,54 +465,60 @@ public class CouponServiceImpl implements CouponService {
         }
     }
 
-    /**
-     * 计算优惠金额
-     */
     private BigDecimal calculateDiscountAmount(UserCoupon userCoupon, BigDecimal orderAmount) {
         Coupon coupon = couponRepository.selectById(userCoupon.getCouponId());
-        if (coupon == null) return BigDecimal.ZERO;
-        
+        if (coupon == null) {
+            return BigDecimal.ZERO;
+        }
+
         BigDecimal discount = BigDecimal.ZERO;
-        
         if (Coupon.TYPE_FULL_REDUCE.equals(coupon.getCouponType())) {
-            // 满减券
             discount = coupon.getCouponValue();
         } else if (Coupon.TYPE_DISCOUNT.equals(coupon.getCouponType())) {
-            // 折扣券
             discount = orderAmount.multiply(BigDecimal.ONE.subtract(
                     coupon.getCouponValue().divide(BigDecimal.valueOf(100), 4, RoundingMode.HALF_UP)));
-            // 检查最高优惠金额
             if (coupon.getMaxDiscountAmount() != null && discount.compareTo(coupon.getMaxDiscountAmount()) > 0) {
                 discount = coupon.getMaxDiscountAmount();
             }
         } else if (Coupon.TYPE_CASH.equals(coupon.getCouponType())) {
-            // 立减券
             discount = coupon.getCouponValue();
         }
-        
+
         return discount;
     }
 
-    /**
-     * 获取优惠券类型文本
-     */
     private String getCouponTypeText(Integer type) {
-        if (type == null) return "未知";
-        if (Coupon.TYPE_FULL_REDUCE.equals(type)) return "满减券";
-        if (Coupon.TYPE_DISCOUNT.equals(type)) return "折扣券";
-        if (Coupon.TYPE_CASH.equals(type)) return "立减券";
+        if (type == null) {
+            return "未知";
+        }
+        if (Coupon.TYPE_FULL_REDUCE.equals(type)) {
+            return "满减券";
+        }
+        if (Coupon.TYPE_DISCOUNT.equals(type)) {
+            return "折扣券";
+        }
+        if (Coupon.TYPE_CASH.equals(type)) {
+            return "立减券";
+        }
         return "未知";
     }
 
-    /**
-     * 获取状态文本
-     */
     private String getStatusText(Integer status) {
-        if (status == null) return "未知";
-        if (UserCoupon.STATUS_UNUSED.equals(status)) return "未使用";
-        if (UserCoupon.STATUS_USED.equals(status)) return "已使用";
-        if (UserCoupon.STATUS_EXPIRED.equals(status)) return "已过期";
-        if (UserCoupon.STATUS_DISABLED.equals(status)) return "已失效";
+        if (status == null) {
+            return "未知";
+        }
+        if (UserCoupon.STATUS_UNUSED.equals(status)) {
+            return "未使用";
+        }
+        if (UserCoupon.STATUS_USED.equals(status)) {
+            return "已使用";
+        }
+        if (UserCoupon.STATUS_EXPIRED.equals(status)) {
+            return "已过期";
+        }
+        if (UserCoupon.STATUS_DISABLED.equals(status)) {
+            return "已失效";
+        }
         return "未知";
     }
 }

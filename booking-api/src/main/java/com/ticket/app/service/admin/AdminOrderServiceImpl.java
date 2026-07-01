@@ -16,6 +16,7 @@ import com.ticket.app.entity.User;
 import com.ticket.app.repository.admin.AdminOrderRepository;
 import com.ticket.app.repository.order.OrderRepository;
 import com.ticket.app.repository.user.UserRepository;
+import com.ticket.app.service.coupon.CouponService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -28,9 +29,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-/**
- * 管理员订单服务实现
- */
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -39,13 +37,20 @@ public class AdminOrderServiceImpl implements AdminOrderService {
     private final AdminOrderRepository adminOrderRepository;
     private final OrderRepository orderRepository;
     private final UserRepository userRepository;
+    private final CouponService couponService;
+
+    public AdminOrderServiceImpl(
+            AdminOrderRepository adminOrderRepository,
+            OrderRepository orderRepository,
+            UserRepository userRepository) {
+        this(adminOrderRepository, orderRepository, userRepository, null);
+    }
 
     @Override
     public PageResult<AdminOrderResponse> getOrderList(AdminOrderListRequest request) {
         Integer page = request.getPage() != null ? request.getPage() : 1;
         Integer pageSize = request.getPageSize() != null ? request.getPageSize() : 10;
 
-        // 构建查询条件
         LocalDateTime startDate = null;
         LocalDateTime endDate = null;
         if (request.getStartDate() != null) {
@@ -79,30 +84,21 @@ public class AdminOrderServiceImpl implements AdminOrderService {
         queryWrapper.orderByDesc(Order::getCreatedAt);
 
         IPage<Order> pageResult = adminOrderRepository.selectPage(pageParam, queryWrapper);
-
-        // 转换为响应对象
         List<AdminOrderResponse> responseList = new ArrayList<>();
         for (Order order : pageResult.getRecords()) {
-            AdminOrderResponse response = convertToResponse(order);
-            responseList.add(response);
+            responseList.add(convertToResponse(order));
         }
 
-        return PageResult.of(
-                responseList,
-                pageResult.getTotal(),
-                page.intValue(),
-                pageSize
-        );
+        return PageResult.of(responseList, pageResult.getTotal(), page, pageSize);
     }
 
     @Override
     public AdminOrderResponse getOrderDetail(Long orderId) {
         Order order = orderRepository.selectById(orderId);
         if (order == null) {
-            // 尝试按订单号查询
             order = orderRepository.selectByOrderNo(orderId.toString());
             if (order == null) {
-                throw new BusinessException(ResultCode.NOT_FOUND, "订单不存在");
+                throw new BusinessException(ResultCode.NOT_FOUND, "order does not exist");
             }
         }
         return convertToResponse(order);
@@ -113,23 +109,19 @@ public class AdminOrderServiceImpl implements AdminOrderService {
     public void cancelOrder(Long orderId, AdminCancelOrderRequest request) {
         Order order = orderRepository.selectById(orderId);
         if (order == null) {
-            throw new BusinessException(ResultCode.NOT_FOUND, "订单不存在");
+            throw new BusinessException(ResultCode.NOT_FOUND, "order does not exist");
+        }
+        if (order.getOrderStatus() != Order.STATUS_PENDING_PAY && order.getOrderStatus() != Order.STATUS_PAID) {
+            throw new BusinessException(ResultCode.PARAM_ERROR, "current status does not allow cancel");
         }
 
-        // 检查订单状态是否可取消
-        if (order.getOrderStatus() != Order.STATUS_PENDING_PAY
-                && order.getOrderStatus() != Order.STATUS_PAID) {
-            throw new BusinessException(ResultCode.PARAM_ERROR, "当前订单状态不允许取消");
-        }
-
-        // 更新订单状态
         order.setOrderStatus(Order.STATUS_CANCELLED);
         order.setCancelTime(LocalDateTime.now());
         order.setCancelReason(request.getCancelReason());
         order.setUpdatedAt(LocalDateTime.now());
         orderRepository.updateById(order);
 
-        log.info("管理员取消订单: orderId={}, reason={}", orderId, request.getCancelReason());
+        log.info("admin cancelled order: orderId={}, reason={}", orderId, request.getCancelReason());
     }
 
     @Override
@@ -137,35 +129,31 @@ public class AdminOrderServiceImpl implements AdminOrderService {
     public void refundOrder(Long orderId, AdminRefundRequest request) {
         Order order = orderRepository.selectById(orderId);
         if (order == null) {
-            throw new BusinessException(ResultCode.NOT_FOUND, "订单不存在");
+            throw new BusinessException(ResultCode.NOT_FOUND, "order does not exist");
         }
-
-        // 检查是否已支付
         if (order.getPayStatus() != Order.PAY_STATUS_PAID) {
-            throw new BusinessException(ResultCode.PARAM_ERROR, "订单未支付，无法退款");
+            throw new BusinessException(ResultCode.PARAM_ERROR, "order is not paid");
         }
 
-        // 管理端强制退票固定全额退款，不受客户退票手续费规则影响
         BigDecimal refundAmount = order.getPayAmount();
-
-        // 更新订单状态
         order.setOrderStatus(Order.STATUS_REFUNDED);
         order.setPayStatus(Order.PAY_STATUS_REFUNDED);
         order.setUpdatedAt(LocalDateTime.now());
         orderRepository.updateById(order);
 
-        log.info("管理员强制退款: orderId={}, refundAmount={}, reason={}",
+        if (order.getUserCouponId() != null && couponService != null) {
+            couponService.returnCoupon(order.getUserId(), order.getId(), true);
+        }
+
+        log.info("admin refunded order: orderId={}, refundAmount={}, reason={}",
                 orderId, refundAmount, request.getReason());
     }
 
     @Override
     public OrderStatsResponse getOrderStats() {
         OrderStatsResponse response = new OrderStatsResponse();
-
-        // 统计各状态订单数
         List<Object> statusCounts = adminOrderRepository.selectOrderStatusCount();
 
-        // 设置默认值
         response.setTotalOrders(0);
         response.setPendingPayOrders(0);
         response.setPaidOrders(0);
@@ -174,7 +162,6 @@ public class AdminOrderServiceImpl implements AdminOrderService {
         response.setRefundingOrders(0);
         response.setOrderStatusDistribution(new ArrayList<>());
 
-        // 解析统计结果
         for (Object obj : statusCounts) {
             if (obj instanceof Map) {
                 @SuppressWarnings("unchecked")
@@ -187,7 +174,6 @@ public class AdminOrderServiceImpl implements AdminOrderService {
                 item.setCount(count);
                 response.getOrderStatusDistribution().add(item);
 
-                // 累加统计
                 response.setTotalOrders(response.getTotalOrders() + count);
                 if (Order.STATUS_PENDING_PAY.equals(status)) {
                     response.setPendingPayOrders(count);
@@ -208,13 +194,9 @@ public class AdminOrderServiceImpl implements AdminOrderService {
 
     @Override
     public List<?> getOrderTickets(Long orderId) {
-        // TODO: 查询订单关联的票务信息
         return new ArrayList<>();
     }
 
-    /**
-     * 转换为响应对象
-     */
     private AdminOrderResponse convertToResponse(Order order) {
         AdminOrderResponse response = new AdminOrderResponse();
         response.setId(order.getId());
@@ -235,7 +217,6 @@ public class AdminOrderServiceImpl implements AdminOrderService {
         response.setPayChannel(order.getPayChannel());
         response.setCreatedAt(order.getCreatedAt());
 
-        // 查询用户名
         if (order.getUserId() != null) {
             User user = userRepository.selectById(order.getUserId());
             if (user != null) {
@@ -247,17 +228,28 @@ public class AdminOrderServiceImpl implements AdminOrderService {
         return response;
     }
 
-    /**
-     * 获取订单状态文本
-     */
     private String getOrderStatusText(Integer status) {
-        if (status == null) return "未知";
-        if (Order.STATUS_PENDING_PAY.equals(status)) return "待支付";
-        if (Order.STATUS_PAID.equals(status)) return "已支付";
-        if (Order.STATUS_COMPLETED.equals(status)) return "已完成";
-        if (Order.STATUS_CANCELLED.equals(status)) return "已取消";
-        if (Order.STATUS_REFUNDED.equals(status)) return "已退款";
-        if (Order.STATUS_REFUNDING.equals(status)) return "退款中";
+        if (status == null) {
+            return "未知";
+        }
+        if (Order.STATUS_PENDING_PAY.equals(status)) {
+            return "待支付";
+        }
+        if (Order.STATUS_PAID.equals(status)) {
+            return "已支付";
+        }
+        if (Order.STATUS_COMPLETED.equals(status)) {
+            return "已完成";
+        }
+        if (Order.STATUS_CANCELLED.equals(status)) {
+            return "已取消";
+        }
+        if (Order.STATUS_REFUNDED.equals(status)) {
+            return "已退款";
+        }
+        if (Order.STATUS_REFUNDING.equals(status)) {
+            return "退款中";
+        }
         return "未知";
     }
 }

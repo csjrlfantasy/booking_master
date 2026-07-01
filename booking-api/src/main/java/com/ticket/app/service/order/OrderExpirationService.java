@@ -8,6 +8,7 @@ import com.ticket.app.repository.order.OrderRepository;
 import com.ticket.app.repository.ticket.TicketPriceLevelRepository;
 import com.ticket.app.repository.ticket.TicketRepository;
 import com.ticket.app.repository.ticket.TicketSessionRepository;
+import com.ticket.app.service.coupon.CouponService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -26,6 +27,7 @@ public class OrderExpirationService {
     private final TicketRepository ticketRepository;
     private final TicketSessionRepository ticketSessionRepository;
     private final TicketPriceLevelRepository ticketPriceLevelRepository;
+    private final CouponService couponService;
 
     @Transactional(rollbackFor = Exception.class)
     public int cancelExpiredPendingOrders() {
@@ -44,9 +46,15 @@ public class OrderExpirationService {
             order.setCancelReason("支付超时自动取消");
             order.setUpdatedAt(now);
             orderRepository.updateById(order);
+
+            if (order.getUserCouponId() != null) {
+                couponService.returnCoupon(order.getUserId(), order.getId());
+            }
+
             restoreInventory(order);
             cancelled++;
         }
+
         if (cancelled > 0) {
             log.info("自动取消超时待支付订单: count={}", cancelled);
         }
@@ -56,10 +64,11 @@ public class OrderExpirationService {
     private void restoreInventory(Order order) {
         List<OrderItem> items = orderItemRepository.selectList(new LambdaQueryWrapper<OrderItem>()
                 .eq(OrderItem::getOrderId, order.getId()));
-        int totalQuantity = 0;
         if (items == null) {
             return;
         }
+
+        int totalQuantity = 0;
         for (OrderItem item : items) {
             Integer quantity = item.getQuantity();
             if (quantity == null || quantity <= 0) {
@@ -70,6 +79,7 @@ public class OrderExpirationService {
                 ticketPriceLevelRepository.restoreStock(item.getPriceLevelId(), quantity);
             }
         }
+
         if (totalQuantity > 0) {
             ticketRepository.restoreStock(order.getTicketId(), totalQuantity);
             if (order.getSessionId() != null) {

@@ -8,6 +8,7 @@ import com.ticket.app.common.ResultCode;
 import com.ticket.app.common.exception.BusinessException;
 import com.ticket.app.common.util.IdCardUtils;
 import com.ticket.app.common.util.IdUtils;
+import com.ticket.app.controller.coupon.dto.ValidateCouponResponse;
 import com.ticket.app.controller.order.dto.CancelOrderRequest;
 import com.ticket.app.controller.order.dto.CreateOrderRequest;
 import com.ticket.app.controller.order.dto.CreateOrderResponse;
@@ -82,18 +83,22 @@ public class OrderServiceImpl implements OrderService {
             throw new BusinessException(ResultCode.TICKET_NOT_FOUND);
         }
         if (!Ticket.STATUS_ON_SALE.equals(ticket.getStatus())) {
-            throw new BusinessException(ResultCode.TICKET_NOT_FOUND, "票务未在售");
+            throw new BusinessException(ResultCode.TICKET_NOT_FOUND, "ticket is not on sale");
         }
 
         TicketSession session = null;
         if (request.getSessionId() != null) {
             session = ticketSessionRepository.selectById(request.getSessionId());
             if (session == null || !request.getTicketId().equals(session.getTicketId())) {
-                throw new BusinessException(ResultCode.PARAM_ERROR, "场次不存在");
+                throw new BusinessException(ResultCode.PARAM_ERROR, "session does not exist");
             }
             if (!TicketSession.STATUS_ON_SALE.equals(session.getStatus())) {
-                throw new BusinessException(ResultCode.PARAM_ERROR, "场次不可售");
+                throw new BusinessException(ResultCode.PARAM_ERROR, "session is not on sale");
             }
+        }
+
+        if (request.getCouponId() != null && request.getUserCouponId() == null) {
+            throw new BusinessException(ResultCode.PARAM_ERROR, "couponId is no longer supported; use userCouponId");
         }
 
         BigDecimal totalAmount = BigDecimal.ZERO;
@@ -104,21 +109,21 @@ public class OrderServiceImpl implements OrderService {
 
         for (CreateOrderRequest.OrderItemRequest item : request.getItems()) {
             if (item.getQuantity() == null || item.getQuantity() <= 0) {
-                throw new BusinessException(ResultCode.PARAM_ERROR, "购买数量必须大于0");
+                throw new BusinessException(ResultCode.PARAM_ERROR, "quantity must be greater than 0");
             }
 
             TicketPriceLevel priceLevel = ticketPriceLevelRepository.selectById(item.getPriceLevelId());
             if (priceLevel == null || !request.getTicketId().equals(priceLevel.getTicketId())) {
-                throw new BusinessException(ResultCode.PARAM_ERROR, "票档不存在");
+                throw new BusinessException(ResultCode.PARAM_ERROR, "price level does not exist");
             }
             if (!Integer.valueOf(1).equals(priceLevel.getStatus())) {
-                throw new BusinessException(ResultCode.PARAM_ERROR, "票档不可售");
+                throw new BusinessException(ResultCode.PARAM_ERROR, "price level is not available");
             }
             if (priceLevel.getAvailableStock() == null || priceLevel.getAvailableStock() < item.getQuantity()) {
-                throw new BusinessException(ResultCode.PARAM_ERROR, "票档库存不足");
+                throw new BusinessException(ResultCode.PARAM_ERROR, "price level stock is insufficient");
             }
             if (item.getUnitPrice() == null || item.getUnitPrice().compareTo(priceLevel.getPrice()) != 0) {
-                throw new BusinessException(ResultCode.PARAM_ERROR, "票档价格已变化，请刷新后重试");
+                throw new BusinessException(ResultCode.PARAM_ERROR, "price changed, please refresh and try again");
             }
 
             item.setPriceLevelName(priceLevel.getName());
@@ -127,23 +132,11 @@ public class OrderServiceImpl implements OrderService {
             totalQuantity += item.getQuantity();
         }
 
-        for (CreateOrderRequest.OrderItemRequest item : request.getItems()) {
-            if (ticketPriceLevelRepository.decreaseStock(item.getPriceLevelId(), item.getQuantity()) == 0) {
-                throw new BusinessException(ResultCode.PARAM_ERROR, "票档库存不足");
-            }
-        }
-        if (ticketRepository.decreaseStock(request.getTicketId(), totalQuantity) == 0) {
-            throw new BusinessException(ResultCode.PARAM_ERROR, "票务库存不足");
-        }
-        if (request.getSessionId() != null && ticketSessionRepository.decreaseCapacity(request.getSessionId(), totalQuantity) == 0) {
-            throw new BusinessException(ResultCode.PARAM_ERROR, "场次库存不足");
-        }
-
         Long couponId = null;
         Long userCouponId = null;
         String couponName = null;
         if (request.getUserCouponId() != null) {
-            var couponValidation = couponService.validateUserCoupon(
+            ValidateCouponResponse couponValidation = couponService.validateUserCoupon(
                     userId,
                     request.getUserCouponId(),
                     totalAmount,
@@ -202,6 +195,24 @@ public class OrderServiceImpl implements OrderService {
         order.setIpAddress(null);
         orderRepository.insert(order);
 
+
+
+        if (userCouponId != null) {
+            couponService.bindCouponToOrder(userId, userCouponId, order.getId());
+        }
+
+        for (CreateOrderRequest.OrderItemRequest item : request.getItems()) {
+            if (ticketPriceLevelRepository.decreaseStock(item.getPriceLevelId(), item.getQuantity()) == 0) {
+                throw new BusinessException(ResultCode.PARAM_ERROR, "price level stock is insufficient");
+            }
+        }
+        if (ticketRepository.decreaseStock(request.getTicketId(), totalQuantity) == 0) {
+            throw new BusinessException(ResultCode.PARAM_ERROR, "ticket stock is insufficient");
+        }
+        if (request.getSessionId() != null && ticketSessionRepository.decreaseCapacity(request.getSessionId(), totalQuantity) == 0) {
+            throw new BusinessException(ResultCode.PARAM_ERROR, "session capacity is insufficient");
+        }
+
         for (CreateOrderRequest.OrderItemRequest item : request.getItems()) {
             OrderItem orderItem = new OrderItem();
             orderItem.setOrderId(order.getId());
@@ -221,7 +232,7 @@ public class OrderServiceImpl implements OrderService {
             orderItemRepository.insert(orderItem);
         }
 
-        log.info("创建订单成功: userId={}, orderId={}, orderNo={}", userId, order.getId(), orderNo);
+        log.info("created order: userId={}, orderId={}, orderNo={}", userId, order.getId(), orderNo);
 
         CreateOrderResponse response = new CreateOrderResponse();
         response.setOrderId(order.getId());
@@ -258,6 +269,10 @@ public class OrderServiceImpl implements OrderService {
             item.setShowTime(order.getShowTime());
             item.setTotalQuantity(order.getTotalQuantity());
             item.setPayAmount(order.getPayAmount());
+            item.setCouponId(order.getCouponId());
+            item.setUserCouponId(order.getUserCouponId());
+            item.setCouponName(order.getCouponName());
+            item.setCouponAmount(order.getCouponAmount());
             item.setOrderStatus(order.getOrderStatus());
             item.setOrderStatusText(getOrderStatusText(order.getOrderStatus()));
             item.setPayStatus(order.getPayStatus());
@@ -273,10 +288,10 @@ public class OrderServiceImpl implements OrderService {
     public OrderDetailResponse getOrderDetail(Long userId, Long orderId) {
         Order order = orderRepository.selectById(orderId);
         if (order == null) {
-            throw new BusinessException(ResultCode.ORDER_NOT_FOUND, "订单不存在");
+            throw new BusinessException(ResultCode.ORDER_NOT_FOUND, "order does not exist");
         }
         if (!order.getUserId().equals(userId)) {
-            throw new BusinessException(ResultCode.PARAM_ERROR, "无权查看此订单");
+            throw new BusinessException(ResultCode.PARAM_ERROR, "no permission to view this order");
         }
         return buildOrderDetailResponse(order);
     }
@@ -287,10 +302,10 @@ public class OrderServiceImpl implements OrderService {
         wrapper.eq(Order::getOrderNo, orderNo);
         Order order = orderRepository.selectOne(wrapper);
         if (order == null) {
-            throw new BusinessException(ResultCode.ORDER_NOT_FOUND, "订单不存在");
+            throw new BusinessException(ResultCode.ORDER_NOT_FOUND, "order does not exist");
         }
         if (!order.getUserId().equals(userId)) {
-            throw new BusinessException(ResultCode.PARAM_ERROR, "无权查看此订单");
+            throw new BusinessException(ResultCode.PARAM_ERROR, "no permission to view this order");
         }
         return buildOrderDetailResponse(order);
     }
@@ -300,16 +315,16 @@ public class OrderServiceImpl implements OrderService {
     public void cancelOrder(Long userId, CancelOrderRequest request) {
         Order order = orderRepository.selectById(request.getOrderId());
         if (order == null) {
-            throw new BusinessException(ResultCode.ORDER_NOT_FOUND, "订单不存在");
+            throw new BusinessException(ResultCode.ORDER_NOT_FOUND, "order does not exist");
         }
         if (!order.getUserId().equals(userId)) {
-            throw new BusinessException(ResultCode.PARAM_ERROR, "无权操作此订单");
+            throw new BusinessException(ResultCode.PARAM_ERROR, "no permission to operate this order");
         }
         if (!Order.STATUS_PENDING_PAY.equals(order.getOrderStatus())) {
-            throw new BusinessException(ResultCode.ORDER_STATUS_ERROR, "当前订单状态不允许取消，只有待支付订单才能取消");
+            throw new BusinessException(ResultCode.ORDER_STATUS_ERROR, "only pending orders can be cancelled");
         }
         if (Order.PAY_STATUS_PAID.equals(order.getPayStatus())) {
-            throw new BusinessException(ResultCode.ORDER_STATUS_ERROR, "已支付订单无法直接取消，请申请退款");
+            throw new BusinessException(ResultCode.ORDER_STATUS_ERROR, "paid orders should request refund instead");
         }
 
         order.setOrderStatus(Order.STATUS_CANCELLED);
@@ -318,11 +333,12 @@ public class OrderServiceImpl implements OrderService {
         order.setCancelReason(request.getCancelReason());
         orderRepository.updateById(order);
 
-        if (order.getCouponId() != null) {
+        if (order.getUserCouponId() != null && couponService != null) {
             try {
                 couponService.returnCoupon(userId, order.getId());
-            } catch (Exception e) {
-                log.warn("退还优惠券失败: userId={}, orderId={}, couponId={}", userId, order.getId(), order.getCouponId());
+            } catch (Exception exception) {
+                log.warn("failed to return coupon: userId={}, orderId={}, userCouponId={}",
+                        userId, order.getId(), order.getUserCouponId(), exception);
             }
         }
 
@@ -349,7 +365,7 @@ public class OrderServiceImpl implements OrderService {
             }
         }
 
-        log.info("取消订单成功: userId={}, orderId={}, orderNo={}", userId, request.getOrderId(), order.getOrderNo());
+        log.info("cancelled order: userId={}, orderId={}, orderNo={}", userId, request.getOrderId(), order.getOrderNo());
     }
 
     @Override
@@ -359,28 +375,19 @@ public class OrderServiceImpl implements OrderService {
         wrapper.eq(Order::getOrderNo, orderNo);
         Order order = orderRepository.selectOne(wrapper);
         if (order == null) {
-            log.error("支付回调订单不存在: orderNo={}", orderNo);
+            log.error("pay callback order not found: orderNo={}", orderNo);
             return;
         }
         if (Order.PAY_STATUS_PAID.equals(order.getPayStatus())) {
-            log.info("订单已支付，忽略回调: orderNo={}", orderNo);
+            log.info("order already paid, ignore callback: orderNo={}", orderNo);
             return;
         }
         if (!Order.STATUS_PENDING_PAY.equals(order.getOrderStatus())) {
-            log.warn("订单状态不允许支付: orderNo={}, orderStatus={}", orderNo, order.getOrderStatus());
-            if (Order.STATUS_CANCELLED.equals(order.getOrderStatus())) {
-                log.warn("订单已取消，忽略支付回调: orderNo={}", orderNo);
-                return;
-            }
-            if (Order.STATUS_PAID.equals(order.getOrderStatus())) {
-                log.warn("订单已经是已支付状态: orderNo={}", orderNo);
-                return;
-            }
-            log.warn("订单已不处于待支付状态，忽略支付回调: orderNo={}, status={}", orderNo, order.getOrderStatus());
+            log.warn("order status does not allow payment: orderNo={}, orderStatus={}", orderNo, order.getOrderStatus());
             return;
         }
         if (order.getExpireTime() != null && LocalDateTime.now().isAfter(order.getExpireTime())) {
-            log.warn("订单已过期，忽略支付回调: orderNo={}, expireTime={}", orderNo, order.getExpireTime());
+            log.warn("order expired, ignore callback: orderNo={}, expireTime={}", orderNo, order.getExpireTime());
             return;
         }
 
@@ -391,7 +398,11 @@ public class OrderServiceImpl implements OrderService {
         order.setTradeNo(tradeNo);
         orderRepository.updateById(order);
 
-        log.info("订单支付成功: orderNo={}, payChannel={}, tradeNo={}", orderNo, payChannel, tradeNo);
+        if (order.getUserCouponId() != null && couponService != null) {
+            couponService.markCouponUsed(order.getUserId(), order.getUserCouponId(), order.getId());
+        }
+
+        log.info("payment succeeded: orderNo={}, payChannel={}, tradeNo={}", orderNo, payChannel, tradeNo);
     }
 
     @Override
@@ -399,20 +410,20 @@ public class OrderServiceImpl implements OrderService {
     public void completeOrder(Long userId, Long orderId) {
         Order order = orderRepository.selectById(orderId);
         if (order == null) {
-            throw new BusinessException(ResultCode.ORDER_NOT_FOUND, "订单不存在");
+            throw new BusinessException(ResultCode.ORDER_NOT_FOUND, "order does not exist");
         }
         if (!order.getUserId().equals(userId)) {
-            throw new BusinessException(ResultCode.PARAM_ERROR, "无权操作此订单");
+            throw new BusinessException(ResultCode.PARAM_ERROR, "no permission to operate this order");
         }
         if (!Order.STATUS_PAID.equals(order.getOrderStatus())) {
-            throw new BusinessException(ResultCode.ORDER_STATUS_ERROR, "只有已支付订单才能完成");
+            throw new BusinessException(ResultCode.ORDER_STATUS_ERROR, "only paid orders can be completed");
         }
 
         order.setOrderStatus(Order.STATUS_COMPLETED);
         order.setCompleteTime(LocalDateTime.now());
         orderRepository.updateById(order);
 
-        log.info("完成订单成功: userId={}, orderId={}", userId, orderId);
+        log.info("completed order: userId={}, orderId={}", userId, orderId);
     }
 
     @Override
@@ -434,7 +445,7 @@ public class OrderServiceImpl implements OrderService {
         }
         order.setOrderStatus(status);
         orderRepository.updateById(order);
-        log.info("更新订单状态成功: userId={}, orderId={}, status={}", userId, orderId, status);
+        log.info("updated order status: userId={}, orderId={}, status={}", userId, orderId, status);
     }
 
     private OrderDetailResponse buildOrderDetailResponse(Order order) {
@@ -501,7 +512,7 @@ public class OrderServiceImpl implements OrderService {
     private void validateAttendees(Long userId, Ticket ticket, CreateOrderRequest.OrderItemRequest item, Set<String> usedIdCards) {
         List<CreateOrderRequest.AttendeeRequest> attendees = item.getAttendees();
         if (attendees == null || attendees.size() != item.getQuantity()) {
-            throw new BusinessException(ResultCode.PARAM_ERROR, "观演人数必须和购票数量一致");
+            throw new BusinessException(ResultCode.PARAM_ERROR, "attendee count must match quantity");
         }
 
         int minAge = parseMinAge(ticket.getAgeLimit());
@@ -512,20 +523,20 @@ public class OrderServiceImpl implements OrderService {
                 attendee.setIdCardNo(identity.getIdCardNo());
             }
             if (attendee.getRealName() == null || attendee.getRealName().trim().isEmpty()) {
-                throw new BusinessException(ResultCode.PARAM_ERROR, "观演人姓名不能为空");
+                throw new BusinessException(ResultCode.PARAM_ERROR, "attendee name is required");
             }
             if (!IdCardUtils.isValid(attendee.getIdCardNo())) {
-                throw new BusinessException(ResultCode.PARAM_ERROR, "身份证号不合法");
+                throw new BusinessException(ResultCode.PARAM_ERROR, "attendee id card is invalid");
             }
 
             String normalized = attendee.getIdCardNo().trim().toUpperCase();
             if (!usedIdCards.add(normalized)) {
-                throw new BusinessException(ResultCode.PARAM_ERROR, "同一订单不能重复使用身份证");
+                throw new BusinessException(ResultCode.PARAM_ERROR, "duplicate attendee id cards are not allowed");
             }
             attendee.setIdCardNo(normalized);
 
             if (minAge > 0 && IdCardUtils.calculateAge(normalized, LocalDate.now()) < minAge) {
-                throw new BusinessException(ResultCode.PARAM_ERROR, "观演人未达到本场票务年龄要求");
+                throw new BusinessException(ResultCode.PARAM_ERROR, "attendee does not meet the minimum age");
             }
         }
     }
@@ -600,3 +611,5 @@ public class OrderServiceImpl implements OrderService {
         return "未知";
     }
 }
+
+
