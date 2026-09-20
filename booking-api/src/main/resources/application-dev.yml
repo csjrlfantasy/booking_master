@@ -57,9 +57,9 @@ payment:
 # Swagger配置
 springdoc:
   api-docs:
-    enabled: true
+    enabled: false
   swagger-ui:
-    enabled: true
+    enabled: false
     path: /swagger-ui.html
 
 # 日志级别
