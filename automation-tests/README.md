@@ -37,18 +37,14 @@ python -m playwright install chromium
 
 ## 选择环境与执行
 
-默认环境为 `local`；也可显式选择：
-
-```bash
-python -m pytest --env=local
-python -m pytest --env=public
-```
-
-以下收集命令不需要任何密钥，也不会连接服务端：
+默认环境为 `local`；以下命令可安全地显式选择环境并仅收集用例：
 
 ```bash
 python -m pytest --collect-only -q --env=local
+python -m pytest --collect-only -q --env=public
 ```
+
+实际执行时必须选择测试套件；若该套件包含 `write` 测试，还必须提供 `--allow-write` 和 `COURSE_TEST_KEY`。
 
 运行框架测试：
 
