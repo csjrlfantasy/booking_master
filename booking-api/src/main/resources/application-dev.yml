@@ -57,7 +57,7 @@ payment:
 # Swagger配置
 springdoc:
   api-docs:
-    enabled: ${COURSE_TEST_SUPPORT_ENABLED:false}
+    enabled: true
   swagger-ui:
     enabled: true
     path: /swagger-ui.html
@@ -69,5 +69,5 @@ logging:
 
 course:
   test-support:
-    enabled: true
+    enabled: ${COURSE_TEST_SUPPORT_ENABLED:false}
     key: ${COURSE_TEST_KEY}
