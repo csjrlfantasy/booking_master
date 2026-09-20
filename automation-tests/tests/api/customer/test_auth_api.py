@@ -95,7 +95,7 @@ def test_duplicate_phone_returns_current_backend_code(
 
 @pytest.mark.parametrize("missing_field", ("username", "password", "phone"))
 def test_registration_rejects_each_missing_required_field_without_creating_a_user(
-    booking_api, test_data_factory, missing_field
+    booking_api, cleanup_registry, test_data_factory, missing_field
 ):
     payload = test_data_factory.user()
     payload.pop(missing_field)
@@ -104,6 +104,18 @@ def test_registration_rejects_each_missing_required_field_without_creating_a_use
         booking_api.register_user(payload)
 
     _assert_validation_failure(error.value)
+    retry_payload = test_data_factory.user()
+    if missing_field == "username":
+        retry_payload["phone"] = payload["phone"]
+    elif missing_field == "password":
+        retry_payload["username"] = payload["username"]
+        retry_payload["phone"] = payload["phone"]
+    else:
+        retry_payload["username"] = payload["username"]
+
+    user_id = booking_api.register_user(retry_payload)
+    cleanup_registry.add_user(user_id)
+    assert type(user_id) is int and user_id > 0
 
 
 def test_authenticated_customer_cannot_fetch_another_users_profile(
