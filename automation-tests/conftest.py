@@ -80,22 +80,8 @@ def temporary_customer(
     cleanup_registry: CleanupRegistry,
     test_data_factory: TestDataFactory,
 ) -> Iterator[TemporaryCustomer]:
-    user_data = test_data_factory.user()
-    user_id = booking_api.register_user(user_data)
-    cleanup_registry.add_user(user_id)
-    login = booking_api.login_user(user_data["username"], user_data["password"])
-    token = _non_empty_string(login.get("token"), "login token")
-    logged_in_user_id = _positive_integer(login.get("userId"), "login user ID")
-    if logged_in_user_id != user_id:
-        raise RuntimeError("login user ID did not match the registered user")
-    expires_in = _positive_integer(login.get("expiresIn"), "login expiry")
-
-    customer = TemporaryCustomer(
-        run_id=run_id,
-        user_id=user_id,
-        username=user_data["username"],
-        token=token,
-        expires_in=expires_in,
+    customer = _create_temporary_customer(
+        run_id, booking_api, cleanup_registry, test_data_factory
     )
     try:
         yield customer
@@ -118,14 +104,14 @@ def write_environment_guard(
 def authenticated_customer_context(browser, settings: Settings, temporary_customer: TemporaryCustomer):
     """Create an authenticated browser context before its first page is opened."""
     context = browser.new_context(base_url=settings.web_url)
-    script, _ = customer_init_script(
-        token=temporary_customer.token,
-        user_id=temporary_customer.user_id,
-        name=temporary_customer.username,
-        expires_in=temporary_customer.expires_in,
-    )
-    context.add_init_script(script=script)
     try:
+        script, _ = customer_init_script(
+            token=temporary_customer.token,
+            user_id=temporary_customer.user_id,
+            name=temporary_customer.username,
+            expires_in=temporary_customer.expires_in,
+        )
+        context.add_init_script(script=script)
         yield context
     finally:
         context.close()
@@ -148,6 +134,39 @@ def _positive_integer(value: object, field: str) -> int:
     if type(value) is not int or value <= 0:
         raise RuntimeError(f"{field} must be a positive integer")
     return value
+
+
+def _create_temporary_customer(
+    run_id: str,
+    booking_api: BookingApi,
+    cleanup_registry: CleanupRegistry,
+    test_data_factory: TestDataFactory,
+) -> TemporaryCustomer:
+    """Create a logged-in user and discard the password before returning its record."""
+    user_data = test_data_factory.user()
+    username = _non_empty_string(user_data.get("username"), "registered username")
+    password = _non_empty_string(user_data.get("password"), "registered password")
+    user_id = booking_api.register_user(user_data)
+    cleanup_registry.add_user(user_id)
+    try:
+        login = booking_api.login_user(username, password)
+    finally:
+        user_data.clear()
+        del user_data
+        del password
+
+    token = _non_empty_string(login.get("token"), "login token")
+    logged_in_user_id = _positive_integer(login.get("userId"), "login user ID")
+    if logged_in_user_id != user_id:
+        raise RuntimeError("login user ID did not match the registered user")
+    expires_in = _positive_integer(login.get("expiresIn"), "login expiry")
+    return TemporaryCustomer(
+        run_id=run_id,
+        user_id=user_id,
+        username=username,
+        token=token,
+        expires_in=expires_in,
+    )
 
 
 def _assert_user_absent(booking_api: BookingApi, user_id: int, token: str) -> None:
