@@ -8,7 +8,9 @@ from conftest import (
     TemporaryCustomer,
     _create_temporary_customer,
     authenticated_customer_context,
+    temporary_customer,
 )
+from framework.api.client import ApiBusinessError
 
 
 def test_customer_session_matches_frontend_storage_contract():
@@ -124,3 +126,51 @@ def test_temporary_customer_record_does_not_expose_factory_password():
     assert registry.user_ids == [7]
     assert "password" not in repr(customer).casefold()
     assert "Course!secret" not in repr(customer)
+
+
+def test_temporary_customer_teardown_uses_the_yielded_record(monkeypatch):
+    class FakeBookingApi:
+        def __init__(self):
+            self.delete_call = None
+            self.lookup_call = None
+
+        def register_user(self, payload):
+            return 17
+
+        def login_user(self, username, password):
+            return {"token": "record-token", "userId": 17, "expiresIn": 3600}
+
+        def delete_test_user(self, run_id, user_id, course_key):
+            self.delete_call = (run_id, user_id, course_key)
+            return {"deleted": True}
+
+        def get_user(self, user_id, token):
+            self.lookup_call = (user_id, token)
+            raise ApiBusinessError(100100, "not found")
+
+    class FakeRegistry:
+        def add_user(self, user_id):
+            assert user_id == 17
+
+    class FakeFactory:
+        def user(self):
+            return {
+                "username": "course-user",
+                "nickname": "course-user",
+                "phone": "19000000000",
+                "password": "Course!secret",
+                "source": "h5",
+            }
+
+    monkeypatch.setenv("COURSE_TEST_KEY", "synthetic-course-key")
+    api = FakeBookingApi()
+    fixture = temporary_customer.__wrapped__(
+        "a1b2c3d4", api, FakeRegistry(), FakeFactory()
+    )
+    customer = next(fixture)
+
+    with pytest.raises(StopIteration):
+        next(fixture)
+
+    assert api.delete_call == (customer.run_id, customer.user_id, "synthetic-course-key")
+    assert api.lookup_call == (customer.user_id, customer.token)

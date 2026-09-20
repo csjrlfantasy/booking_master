@@ -86,8 +86,8 @@ def temporary_customer(
     try:
         yield customer
     finally:
-        booking_api.delete_test_user(run_id, user_id, _course_test_key())
-        _assert_user_absent(booking_api, user_id, token)
+        booking_api.delete_test_user(run_id, customer.user_id, _course_test_key())
+        _assert_user_absent(booking_api, customer.user_id, customer.token)
 
 
 @pytest.fixture(scope="session", autouse=True)
