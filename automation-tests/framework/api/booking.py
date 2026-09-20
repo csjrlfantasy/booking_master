@@ -111,14 +111,10 @@ class BookingApi:
 
     def get_ticket(self, ticket_id: int) -> dict[str, Any]:
         _validate_resource_id(ticket_id, "ticket ID")
-        return _validate_resource_object(
-            self._client.get(f"/tickets/{ticket_id}"), "ticket detail"
-        )
+        return _validate_ticket_detail(self._client.get(f"/tickets/{ticket_id}"))
 
     def list_categories(self) -> list[dict[str, Any]]:
-        return _validate_resource_list(
-            self._client.get("/categories"), "category response"
-        )
+        return _validate_categories(self._client.get("/categories"))
 
     def get_hot_tickets(self, *, limit: int | None = None) -> list[dict[str, Any]]:
         return _validate_ticket_collection(
@@ -141,9 +137,7 @@ class BookingApi:
 
     def list_cart_items(self, token: str) -> list[dict[str, Any]]:
         token = _validate_non_empty_string(token, "token")
-        return _validate_resource_list(
-            self._client.get("/cart", token=token), "cart item response"
-        )
+        return _validate_cart_items(self._client.get("/cart", token=token))
 
     def get_cart_count(self, token: str) -> int:
         token = _validate_non_empty_string(token, "token")
@@ -300,7 +294,56 @@ def _validate_ticket_page(data: object) -> dict[str, Any]:
 
 
 def _validate_ticket_collection(data: object) -> list[dict[str, Any]]:
-    return _validate_resource_list(data, "ticket response")
+    if not isinstance(data, list):
+        raise ValueError("ticket response data must be a list of objects")
+    for item in data:
+        _validate_ticket_list_item(item)
+    return data
+
+
+def _validate_ticket_list_item(data: object) -> dict[str, Any]:
+    data = _validate_resource_object(data, "ticket response")
+    _validate_non_empty_string(data.get("title"), "ticket title")
+    return data
+
+
+def _validate_ticket_detail(data: object) -> dict[str, Any]:
+    data = _validate_resource_object(data, "ticket detail")
+    _validate_non_empty_string(data.get("name"), "ticket name")
+    return data
+
+
+def _validate_categories(data: object) -> list[dict[str, Any]]:
+    if not isinstance(data, list):
+        raise ValueError("category response data must be a list of objects")
+    for category in data:
+        category = _validate_resource_object(category, "category response")
+        _validate_non_empty_string(category.get("name"), "category name")
+        count = category.get("count")
+        if type(count) is not int or count < 0:
+            raise ValueError("category count must be a non-negative integer")
+    return data
+
+
+def _validate_cart_items(data: object) -> list[dict[str, Any]]:
+    if not isinstance(data, list):
+        raise ValueError("cart item response data must be a list of objects")
+    for item in data:
+        item = _validate_resource_object(item, "cart item response")
+        for field, label in (
+            ("userId", "cart user ID"),
+            ("ticketId", "cart ticket ID"),
+            ("sessionId", "cart session ID"),
+            ("priceLevelId", "cart price level ID"),
+            ("quantity", "cart quantity"),
+        ):
+            _validate_resource_id(item.get(field), label)
+        for field in ("unitPrice", "subtotal"):
+            if not _is_number(item.get(field)):
+                raise ValueError(f"cart {field} must be a number")
+        if type(item.get("status")) is not int:
+            raise ValueError("cart status must be an integer")
+    return data
 
 
 def _validate_resource_list(data: object, name: str) -> list[dict[str, Any]]:
@@ -316,6 +359,10 @@ def _validate_resource_object(data: object, name: str) -> dict[str, Any]:
         raise ValueError(f"{name} data must be an object")
     _validate_resource_id(data.get("id"), f"{name} ID")
     return data
+
+
+def _is_number(value: object) -> bool:
+    return isinstance(value, (int, float)) and not isinstance(value, bool)
 
 
 def _validate_cart_add_payload(payload: Mapping[str, object]) -> dict[str, object]:

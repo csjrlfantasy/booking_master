@@ -69,7 +69,13 @@ def test_cart_wrappers_use_current_controller_routes_bearer_headers_and_json(req
         "quantity": 2,
         "unitPrice": 99.0,
     }
-    cart_item = {"id": 17, **payload}
+    cart_item = {
+        "id": 17,
+        "userId": 19,
+        **payload,
+        "subtotal": 198.0,
+        "status": 1,
+    }
     requests_mock.post(f"{base_url}/cart/add", json=_result(17))
     requests_mock.get(f"{base_url}/cart", json=_result([cart_item]))
     requests_mock.get(f"{base_url}/cart/count", json=_result(2))
@@ -120,6 +126,8 @@ def test_cart_wrappers_use_current_controller_routes_bearer_headers_and_json(req
         ("add_cart_item", ("token", {"ticketId": 7, "sessionId": 0, "priceLevelId": 13, "quantity": 1, "unitPrice": 1}), {}),
         ("add_cart_item", ("token", {"ticketId": 7, "sessionId": 11, "priceLevelId": 0, "quantity": 1, "unitPrice": 1}), {}),
         ("add_cart_item", ("token", {"ticketId": 7, "sessionId": 11, "priceLevelId": 13, "quantity": 0, "unitPrice": 1}), {}),
+        ("list_cart_items", ("",), {}),
+        ("get_cart_count", ("",), {}),
         ("update_cart_quantity", ("", 17, 1), {}),
         ("update_cart_quantity", ("token", 0, 1), {}),
         ("update_cart_quantity", ("token", 17, 0), {}),
@@ -141,15 +149,20 @@ def test_catalog_and_cart_wrappers_reject_invalid_arguments(method, args, kwargs
 @pytest.mark.parametrize(
     ("method", "path", "data", "args"),
     [
-        ("list_tickets", "/tickets", {}, ()),
+        (
+            "list_tickets",
+            "/tickets",
+            {"list": [{"id": 7}], "pageNum": 1, "pageSize": 10, "total": 1, "pages": 1, "hasPrevious": False, "hasNext": False},
+            (),
+        ),
         ("search_tickets", "/tickets/search", {"list": []}, ("concert",)),
-        ("get_ticket", "/tickets/7", [], (7,)),
-        ("list_categories", "/categories", {}, ()),
-        ("get_hot_tickets", "/tickets/hot", [{}], ()),
-        ("get_upcoming_tickets", "/tickets/upcoming", [{}], ()),
+        ("get_ticket", "/tickets/7", {"id": 7}, (7,)),
+        ("list_categories", "/categories", [{"id": 3}], ()),
+        ("get_hot_tickets", "/tickets/hot", [{"id": 7}], ()),
+        ("get_upcoming_tickets", "/tickets/upcoming", [{"id": 7}], ()),
         ("add_cart_item", "/cart/add", 0, ("token", {"ticketId": 7, "sessionId": 11, "priceLevelId": 13, "quantity": 1, "unitPrice": 1})),
-        ("list_cart_items", "/cart", {}, ("token",)),
-        ("get_cart_count", "/cart/count", -1, ("token",)),
+        ("list_cart_items", "/cart", [{"id": 17}], ("token",)),
+        ("get_cart_count", "/cart/count", "2", ("token",)),
         ("update_cart_quantity", "/cart/quantity", {}, ("token", 17, 1)),
         ("delete_cart_item", "/cart/17", {}, ("token", 17)),
         ("batch_delete_cart_items", "/cart/batch", {}, ("token", [17])),
