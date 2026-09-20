@@ -1,0 +1,4 @@
+name: public
+web_url: http://154.12.20.250
+api_url: http://154.12.20.250/api
+timeout_seconds: 30

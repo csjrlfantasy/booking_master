@@ -1,0 +1,23 @@
+$schema: https://json-schema.org/draft/2020-12/schema
+type: object
+properties:
+  name:
+    type: string
+    enum:
+      - local
+      - public
+  web_url:
+    type: string
+    format: uri
+  api_url:
+    type: string
+    format: uri
+  timeout_seconds:
+    type: integer
+    exclusiveMinimum: 0
+required:
+  - name
+  - web_url
+  - api_url
+  - timeout_seconds
+additionalProperties: false
