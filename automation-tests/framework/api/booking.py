@@ -83,6 +83,113 @@ class BookingApi:
         if data is not None:
             raise ValueError("identity delete response data must be null")
 
+    def list_tickets(
+        self,
+        *,
+        page_num: int | None = None,
+        page_size: int | None = None,
+        category_id: int | None = None,
+    ) -> dict[str, Any]:
+        params = _catalog_page_params(page_num, page_size)
+        if category_id is not None:
+            _validate_resource_id(category_id, "category ID")
+            params["categoryId"] = category_id
+        return _validate_ticket_page(self._client.get("/tickets", params=params or None))
+
+    def search_tickets(
+        self,
+        keyword: str,
+        *,
+        page_num: int | None = None,
+        page_size: int | None = None,
+    ) -> dict[str, Any]:
+        params = _catalog_page_params(page_num, page_size)
+        params["keyword"] = _validate_non_empty_string(keyword, "keyword")
+        return _validate_ticket_page(
+            self._client.get("/tickets/search", params=params)
+        )
+
+    def get_ticket(self, ticket_id: int) -> dict[str, Any]:
+        _validate_resource_id(ticket_id, "ticket ID")
+        return _validate_resource_object(
+            self._client.get(f"/tickets/{ticket_id}"), "ticket detail"
+        )
+
+    def list_categories(self) -> list[dict[str, Any]]:
+        return _validate_resource_list(
+            self._client.get("/categories"), "category response"
+        )
+
+    def get_hot_tickets(self, *, limit: int | None = None) -> list[dict[str, Any]]:
+        return _validate_ticket_collection(
+            self._client.get("/tickets/hot", params=_limit_param(limit))
+        )
+
+    def get_upcoming_tickets(
+        self, *, limit: int | None = None
+    ) -> list[dict[str, Any]]:
+        return _validate_ticket_collection(
+            self._client.get("/tickets/upcoming", params=_limit_param(limit))
+        )
+
+    def add_cart_item(self, token: str, payload: Mapping[str, object]) -> int:
+        token = _validate_non_empty_string(token, "token")
+        payload = _validate_cart_add_payload(payload)
+        data = self._client.post("/cart/add", token=token, json=payload)
+        _validate_resource_id(data, "cart item ID")
+        return data
+
+    def list_cart_items(self, token: str) -> list[dict[str, Any]]:
+        token = _validate_non_empty_string(token, "token")
+        return _validate_resource_list(
+            self._client.get("/cart", token=token), "cart item response"
+        )
+
+    def get_cart_count(self, token: str) -> int:
+        token = _validate_non_empty_string(token, "token")
+        data = self._client.get("/cart/count", token=token)
+        if type(data) is not int or data < 0:
+            raise ValueError("cart count response data must be a non-negative integer")
+        return data
+
+    def update_cart_quantity(self, token: str, cart_id: int, quantity: int) -> None:
+        token = _validate_non_empty_string(token, "token")
+        _validate_resource_id(cart_id, "cart ID")
+        _validate_resource_id(quantity, "quantity")
+        _validate_null_response(
+            self._client.put(
+                "/cart/quantity",
+                token=token,
+                json={"cartId": cart_id, "quantity": quantity},
+            ),
+            "cart quantity update",
+        )
+
+    def delete_cart_item(self, token: str, cart_id: int) -> None:
+        token = _validate_non_empty_string(token, "token")
+        _validate_resource_id(cart_id, "cart ID")
+        _validate_null_response(
+            self._client.delete(f"/cart/{cart_id}", token=token), "cart delete"
+        )
+
+    def batch_delete_cart_items(
+        self, token: str, cart_ids: Iterable[int]
+    ) -> None:
+        token = _validate_non_empty_string(token, "token")
+        cart_ids = _validate_ids(cart_ids, "cart ID")
+        if not cart_ids:
+            raise ValueError("cart IDs must not be empty")
+        _validate_null_response(
+            self._client.delete("/cart/batch", token=token, json=cart_ids),
+            "cart batch delete",
+        )
+
+    def clear_cart(self, token: str) -> None:
+        token = _validate_non_empty_string(token, "token")
+        _validate_null_response(
+            self._client.delete("/cart", token=token), "cart clear"
+        )
+
     def delete_test_user(self, run_id: str, user_id: int, course_key: str) -> dict[str, Any]:
         _validate_run_id(run_id)
         _validate_resource_id(user_id, "user ID")
@@ -150,3 +257,81 @@ def _validate_ids(resource_ids: Iterable[int], name: str) -> list[int]:
     for resource_id in values:
         _validate_resource_id(resource_id, name)
     return values
+
+
+def _catalog_page_params(
+    page_num: int | None, page_size: int | None
+) -> dict[str, int]:
+    params: dict[str, int] = {}
+    if page_num is not None:
+        _validate_resource_id(page_num, "page number")
+        params["pageNum"] = page_num
+    if page_size is not None:
+        _validate_resource_id(page_size, "page size")
+        params["pageSize"] = page_size
+    return params
+
+
+def _limit_param(limit: int | None) -> dict[str, int] | None:
+    if limit is None:
+        return None
+    _validate_resource_id(limit, "limit")
+    return {"limit": limit}
+
+
+def _validate_ticket_page(data: object) -> dict[str, Any]:
+    if not isinstance(data, dict):
+        raise ValueError("ticket page response data must be an object")
+    required = ("list", "pageNum", "pageSize", "total", "pages", "hasPrevious", "hasNext")
+    if not all(field in data for field in required):
+        raise ValueError("ticket page response data is missing pagination fields")
+    _validate_ticket_collection(data["list"])
+    if type(data["pageNum"]) is not int or data["pageNum"] <= 0:
+        raise ValueError("ticket page number must be a positive integer")
+    if type(data["pageSize"]) is not int or data["pageSize"] <= 0:
+        raise ValueError("ticket page size must be a positive integer")
+    if type(data["total"]) is not int or data["total"] < 0:
+        raise ValueError("ticket page total must be a non-negative integer")
+    if type(data["pages"]) is not int or data["pages"] < 0:
+        raise ValueError("ticket page pages must be a non-negative integer")
+    if type(data["hasPrevious"]) is not bool or type(data["hasNext"]) is not bool:
+        raise ValueError("ticket page navigation fields must be booleans")
+    return data
+
+
+def _validate_ticket_collection(data: object) -> list[dict[str, Any]]:
+    return _validate_resource_list(data, "ticket response")
+
+
+def _validate_resource_list(data: object, name: str) -> list[dict[str, Any]]:
+    if not isinstance(data, list):
+        raise ValueError(f"{name} data must be a list of objects")
+    for item in data:
+        _validate_resource_object(item, name)
+    return data
+
+
+def _validate_resource_object(data: object, name: str) -> dict[str, Any]:
+    if not isinstance(data, dict):
+        raise ValueError(f"{name} data must be an object")
+    _validate_resource_id(data.get("id"), f"{name} ID")
+    return data
+
+
+def _validate_cart_add_payload(payload: Mapping[str, object]) -> dict[str, object]:
+    payload = _validate_mapping(payload, "cart add payload")
+    for field, label in (
+        ("ticketId", "ticket ID"),
+        ("sessionId", "session ID"),
+        ("priceLevelId", "price level ID"),
+        ("quantity", "quantity"),
+    ):
+        _validate_resource_id(payload.get(field), label)
+    if payload.get("unitPrice") is None:
+        raise ValueError("unitPrice must be provided")
+    return payload
+
+
+def _validate_null_response(data: object, name: str) -> None:
+    if data is not None:
+        raise ValueError(f"{name} response data must be null")
