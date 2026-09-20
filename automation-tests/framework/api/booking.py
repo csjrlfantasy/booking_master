@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 from collections.abc import Iterable, Mapping
 from typing import Any
+from urllib.parse import quote
 
 from .client import ApiClient
 
@@ -37,6 +38,50 @@ class BookingApi:
         if not isinstance(data, dict):
             raise ValueError("user response data must be an object")
         return data
+
+    def get_user_by_username(self, username: str) -> dict[str, Any]:
+        username = _validate_non_empty_string(username, "username")
+        data = self._client.get(f"/user/username/{quote(username, safe='')}")
+        if not isinstance(data, dict):
+            raise ValueError("user response data must be an object")
+        return data
+
+    def list_identities(self, token: str) -> list[dict[str, Any]]:
+        token = _validate_non_empty_string(token, "token")
+        data = self._client.get("/user/identities", token=token)
+        if not isinstance(data, list) or not all(isinstance(item, dict) for item in data):
+            raise ValueError("identity response data must be a list of objects")
+        return data
+
+    def create_identity(
+        self, token: str, payload: Mapping[str, object]
+    ) -> dict[str, Any]:
+        token = _validate_non_empty_string(token, "token")
+        payload = _validate_mapping(payload, "identity payload")
+        data = self._client.post("/user/identities", token=token, json=payload)
+        if not isinstance(data, dict):
+            raise ValueError("identity response data must be an object")
+        return data
+
+    def update_identity(
+        self, token: str, identity_id: int, payload: Mapping[str, object]
+    ) -> dict[str, Any]:
+        token = _validate_non_empty_string(token, "token")
+        _validate_resource_id(identity_id, "identity ID")
+        payload = _validate_mapping(payload, "identity payload")
+        data = self._client.put(
+            f"/user/identities/{identity_id}", token=token, json=payload
+        )
+        if not isinstance(data, dict):
+            raise ValueError("identity response data must be an object")
+        return data
+
+    def delete_identity(self, token: str, identity_id: int) -> None:
+        token = _validate_non_empty_string(token, "token")
+        _validate_resource_id(identity_id, "identity ID")
+        data = self._client.delete(f"/user/identities/{identity_id}", token=token)
+        if data is not None:
+            raise ValueError("identity delete response data must be null")
 
     def delete_test_user(self, run_id: str, user_id: int, course_key: str) -> dict[str, Any]:
         _validate_run_id(run_id)
@@ -86,6 +131,18 @@ def _validate_run_id(run_id: str) -> None:
 def _validate_resource_id(resource_id: object, name: str) -> None:
     if type(resource_id) is not int or resource_id <= 0:
         raise ValueError(f"{name} must be a positive integer")
+
+
+def _validate_non_empty_string(value: object, name: str) -> str:
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f"{name} must be a non-empty string")
+    return value
+
+
+def _validate_mapping(value: object, name: str) -> dict[str, object]:
+    if not isinstance(value, Mapping):
+        raise ValueError(f"{name} must be a mapping")
+    return dict(value)
 
 
 def _validate_ids(resource_ids: Iterable[int], name: str) -> list[int]:

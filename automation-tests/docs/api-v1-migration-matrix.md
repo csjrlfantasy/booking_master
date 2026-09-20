@@ -4,7 +4,7 @@
 
 | 旧文件 | 领域 | 状态 | 目标路径 | 原因/证据 |
 | --- | --- | --- | --- | --- |
-| `test_user.py` | 客户认证与身份 | `pending` | `tests/api/customer/test_auth_api.py`、`tests/api/customer/test_identity_api.py` | Task 2 将以当前 Result envelope、认证与跨用户权限规则重建覆盖。 |
+| `test_user.py` | 客户认证与身份 | `migrated` | `tests/api/customer/test_auth_api.py`、`tests/api/customer/test_identity_api.py` | 认证、个人资料、身份及跨用户归属覆盖已替代旧文件。 |
 | `test_ticket.py` | 票务目录 | `pending` | `tests/api/customer/test_catalog_api.py` | Task 3 将按可售票、场次和票档的当前契约迁移。 |
 | `test_cart.py` | 购物车 | `pending` | `tests/api/customer/test_cart_api.py` | Task 3 将覆盖新增、数量更新、删除、清空及未授权行为。 |
 | `test_coupon.py` | 优惠券 | `pending` | `tests/api/customer/test_coupon_api.py` | Task 3 将覆盖领券、重复领券、校验和未授权行为。 |
