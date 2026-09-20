@@ -47,6 +47,8 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item
     config._booking_selected_write_tests = selected_write_tests
     if not selected_write_tests:
         return
+    if config.option.collectonly:
+        return
 
     if not config.getoption("--allow-write"):
         raise pytest.UsageError("write tests require explicit --allow-write")

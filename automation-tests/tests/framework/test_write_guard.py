@@ -36,6 +36,21 @@ def test_read_only_collection_succeeds_without_flags(pytester, monkeypatch):
     result.stdout.fnmatch_lines(["*test_read_only*"])
 
 
+def test_selected_write_test_collection_succeeds_without_execution_authorization(
+    pytester, monkeypatch
+):
+    monkeypatch.delenv("COURSE_TEST_KEY", raising=False)
+    _enable_plugin(pytester, monkeypatch)
+    _make_write_test(pytester)
+
+    result = pytester.runpytest_subprocess("--collect-only", "-q")
+
+    assert result.ret == 0
+    result.stdout.fnmatch_lines(["*test_mutates_data*"])
+    assert "1 test collected" in result.stdout.str()
+    assert "passed" not in result.stdout.str()
+
+
 def test_selected_write_test_requires_explicit_allow_write(pytester, monkeypatch):
     monkeypatch.delenv("COURSE_TEST_KEY", raising=False)
     _enable_plugin(pytester, monkeypatch)
