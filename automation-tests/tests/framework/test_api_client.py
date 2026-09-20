@@ -1,5 +1,6 @@
 import pytest
 import requests
+import traceback
 
 from framework.api.booking import BookingApi
 from framework.api.client import (
@@ -28,14 +29,30 @@ def test_client_rejects_non_result_envelope(requests_mock):
         ApiClient("http://example.test/api").get("/tickets")
 
 
-def test_client_rejects_non_zero_application_code(requests_mock):
+def test_client_redacts_non_zero_application_message_from_exception_details(requests_mock):
+    secret_password = "business-password"
+    secret_token = "business-token"
+    secret_course_key = "business-course-key"
     requests_mock.get(
         "http://example.test/api/tickets",
-        json={"code": 4001, "message": "invalid request", "data": None},
+        json={
+            "code": 4001,
+            "message": (
+                f"password={secret_password}; token={secret_token}; "
+                f"X-Course-Test-Key={secret_course_key}"
+            ),
+            "data": None,
+        },
     )
 
-    with pytest.raises(ApiBusinessError, match="4001.*invalid request"):
+    with pytest.raises(ApiBusinessError) as error:
         ApiClient("http://example.test/api").get("/tickets")
+
+    assert error.value.code == 4001
+    rendered = f"{error.value!s} {error.value!r} {error.value.args!r}"
+    for secret in (secret_password, secret_token, secret_course_key):
+        assert secret not in rendered
+    assert not hasattr(error.value, "message")
 
 
 def test_client_converts_non_success_http_status_without_leaking_secrets(requests_mock):
@@ -85,6 +102,32 @@ def test_client_requires_absolute_api_path_and_wraps_request_failures():
         client.get("/tickets")
     assert "network down" not in str(error.value)
     assert error.value.__cause__ is None
+
+
+def test_client_hides_invalid_json_decoder_details_from_exception_chain():
+    decoder_secret = "decoder-password=private-value"
+
+    class InvalidJsonResponse:
+        ok = True
+
+        def json(self):
+            raise ValueError(decoder_secret)
+
+    class InvalidJsonSession:
+        def request(self, **kwargs):
+            return InvalidJsonResponse()
+
+        def close(self):
+            pass
+
+    with pytest.raises(ApiContractError) as error:
+        ApiClient("http://example.test/api", session=InvalidJsonSession()).get("/tickets")
+
+    rendered_traceback = "".join(traceback.format_exception(error.value))
+    assert decoder_secret not in str(error.value)
+    assert decoder_secret not in rendered_traceback
+    assert error.value.__cause__ is None
+    assert error.value.__context__ is None
 
 
 def test_client_does_not_mutate_headers_and_supports_context_manager(requests_mock):

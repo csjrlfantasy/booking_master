@@ -25,12 +25,15 @@ def fake_booking_api():
 
 
 def test_registry_sends_exact_registered_ids(fake_booking_api):
-    registry = CleanupRegistry("a1b2c3d4", fake_booking_api, "course-key")
+    injected_key = "synthetic-course-key"
+    registry = CleanupRegistry("a1b2c3d4", fake_booking_api, injected_key)
     registry.add_user(7)
     registry.add_user(7)
     registry.cleanup()
 
     assert fake_booking_api.cleanup_payload["userIds"] == [7]
+    assert fake_booking_api.cleanup_payload["courseKey"] == injected_key
+    assert not hasattr(registry, "course_key")
 
 
 def test_registry_keeps_insertion_order_and_deduplicates_each_resource_type(fake_booking_api):
@@ -84,6 +87,12 @@ def test_registry_rejects_invalid_resource_ids(fake_booking_api, resource_id):
 def test_registry_rejects_invalid_run_ids(fake_booking_api, run_id):
     with pytest.raises(ValueError, match="runId"):
         CleanupRegistry(run_id, fake_booking_api, "course-key")
+
+
+@pytest.mark.parametrize("course_key", ["", "   ", None, 7])
+def test_registry_requires_a_non_empty_course_key(fake_booking_api, course_key):
+    with pytest.raises(ValueError, match="course key"):
+        CleanupRegistry("a1b2c3d4", fake_booking_api, course_key)
 
 
 def test_registry_does_not_swallow_cleanup_errors():

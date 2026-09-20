@@ -41,8 +41,8 @@ class ApiBusinessError(RuntimeError):
 
     def __init__(self, code: int, message: object) -> None:
         self.code = code
-        self.message = message
-        super().__init__(f"API business error {code}: {message}")
+        del message
+        super().__init__(f"API business error {code}: message redacted")
 
 
 def redact_sensitive(value: Any) -> Any:
@@ -109,8 +109,10 @@ class ApiClient:
 
         try:
             envelope = response.json()
-        except ValueError as error:
-            raise ApiContractError("Result envelope must be valid JSON") from error
+        except ValueError:
+            envelope = None
+        if envelope is None:
+            raise ApiContractError("Result envelope must be valid JSON")
 
         if not isinstance(envelope, Mapping) or not {"code", "message", "data"}.issubset(envelope):
             raise ApiContractError("Result envelope must contain code, message, and data")

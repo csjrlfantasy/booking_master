@@ -12,9 +12,11 @@ _RUN_ID_PATTERN = re.compile(r"[a-z0-9]{8,32}\Z")
 class CleanupRegistry:
     """Collect resources created by a run and clean them in one API call."""
 
-    def __init__(self, run_id: str, booking_api: Any, course_key: str | None = None) -> None:
+    def __init__(self, run_id: str, booking_api: Any, course_key: str) -> None:
         if not isinstance(run_id, str) or not _RUN_ID_PATTERN.fullmatch(run_id):
             raise ValueError("runId must match [a-z0-9]{8,32}")
+        if not isinstance(course_key, str) or not course_key.strip():
+            raise ValueError("course key must be a non-empty string")
         self._run_id = run_id
         self._booking_api = booking_api
         self._course_key = course_key
