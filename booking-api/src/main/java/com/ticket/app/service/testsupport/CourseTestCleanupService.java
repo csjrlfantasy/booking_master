@@ -63,10 +63,14 @@ public class CourseTestCleanupService {
                 deleted, notFound, rejected, () -> users.add(id)));
         TreeSet<Long> orders = new TreeSet<>(distinct(request.orderIds()));
         users.forEach(id -> orders.addAll(runOwnedOrderIds(id, request.runId())));
-        // All overlapping batches acquire order locks in the same global ID order.
+        // Acquire every order lock before touching shared inventory. Interleaving
+        // restoration with locking could invert order/price-level locks against a
+        // standalone cleanup of a later order sharing the same stock.
+        List<Long> authorizedOrders = new ArrayList<>();
         orders.forEach(id -> validate("order", id,
                 "SELECT user_remark FROM `order` WHERE id = ?", request.runId(),
-                deleted, notFound, rejected, () -> deleteOrder(id, deleted)));
+                deleted, notFound, rejected, () -> authorizedOrders.add(id)));
+        authorizedOrders.forEach(id -> deleteOrder(id, deleted));
         users.forEach(id -> deleteUser(id, deleted));
         distinct(request.ticketIds()).forEach(id -> validate("ticket", id,
                 "SELECT name FROM ticket WHERE id = ?", request.runId(),

@@ -188,6 +188,66 @@ class CourseTestCleanupServiceTransactionTest {
         } finally { pool.shutdownNow(); }
     }
 
+    @Test
+    void overlappingBatchAndStandaloneOrderWithSharedStockCannotInvertLocks() throws Exception {
+        seedOrder(8L,7L,1,11L,null);
+        seedOrder(9L,7L,1,11L,null);
+        jdbc.update("INSERT INTO ticket VALUES (11,10,8,2)");
+        jdbc.update("INSERT INTO ticket_price_level VALUES (41,10,8,2)");
+        jdbc.update("INSERT INTO order_item VALUES (1,8,41,1),(2,9,41,1)");
+        var standaloneHasOrder9 = new java.util.concurrent.CountDownLatch(1);
+        var batchAboutToLockOrder9 = new java.util.concurrent.CountDownLatch(1);
+        var hookedJdbc = new JdbcTemplate(jdbc.getDataSource()) {
+            @Override
+            public <T> T queryForObject(String sql, org.springframework.jdbc.core.RowMapper<T> mapper, Object... args) {
+                if (sql.equals("SELECT user_remark FROM `order` WHERE id = ? FOR UPDATE") && args[0].equals(9L)) {
+                    batchAboutToLockOrder9.countDown();
+                }
+                return super.queryForObject(sql, mapper, args);
+            }
+        };
+        var manager = new DataSourceTransactionManager(jdbc.getDataSource());
+        var proxy = new ProxyFactory(new CourseTestCleanupService(hookedJdbc));
+        proxy.addAdvice(new TransactionInterceptor(manager,
+                new org.springframework.transaction.annotation.AnnotationTransactionAttributeSource()));
+        var batchCleanup = (CourseTestCleanupService)proxy.getProxy();
+        var pool = java.util.concurrent.Executors.newFixedThreadPool(2);
+        try {
+            var standalone = pool.submit(() -> new org.springframework.transaction.support.TransactionTemplate(manager).execute(status -> {
+                jdbc.queryForList("SELECT id FROM `order` WHERE id=9 FOR UPDATE");
+                standaloneHasOrder9.countDown();
+                await(batchAboutToLockOrder9);
+                return cleanup.cleanup(request(List.of(9L),List.of()));
+            }));
+            var batch = pool.submit(() -> {
+                await(standaloneHasOrder9);
+                return batchCleanup.cleanup(request(List.of(9L,8L),List.of()));
+            });
+            standalone.get(10,java.util.concurrent.TimeUnit.SECONDS);
+            var batchResult = batch.get(10,java.util.concurrent.TimeUnit.SECONDS);
+            assertEquals(1,batchResult.notFound().get("order"));
+            assertEquals(10,scalar("SELECT available_stock FROM ticket WHERE id=11"));
+            assertEquals(10,scalar("SELECT available_stock FROM ticket_price_level WHERE id=41"));
+            assertEquals(0,scalar("SELECT sale_count FROM ticket WHERE id=11"));
+            assertEquals(0,scalar("SELECT sold_count FROM ticket_price_level WHERE id=41"));
+            assertEquals(0,scalar("SELECT COUNT(*) FROM `order`"));
+        } finally {
+            standaloneHasOrder9.countDown();
+            batchAboutToLockOrder9.countDown();
+            pool.shutdownNow();
+        }
+    }
+
+    private static void await(java.util.concurrent.CountDownLatch latch) {
+        try {
+            org.junit.jupiter.api.Assertions.assertTrue(latch.await(5,java.util.concurrent.TimeUnit.SECONDS),
+                    "expected cleanup lock checkpoint was not reached");
+        } catch (InterruptedException interrupted) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException(interrupted);
+        }
+    }
+
     private void seedOrder(Long id, Long userId, int status, Long ticketId, Long sessionId) {
         jdbc.update("INSERT INTO `order` (id,user_id,user_remark,order_status,ticket_id,session_id) VALUES (?, ?, ?, ?, ?, ?)", id, userId,
                 "pw-course-a1b2c3d4-order", status, ticketId, sessionId);

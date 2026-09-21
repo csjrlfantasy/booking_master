@@ -202,6 +202,39 @@ class CourseTestCleanupServiceTest {
         sequence.verify(jdbcTemplate).queryForObject(eq("SELECT user_remark FROM `order` WHERE id = ? FOR UPDATE"), any(org.springframework.jdbc.core.RowMapper.class), eq(8L));
     }
 
+    @Test
+    void locksAllCandidateOrdersBeforeAnySharedInventoryMutationOrDeletion() {
+        when(jdbcTemplate.queryForObject(anyString(), any(org.springframework.jdbc.core.RowMapper.class), any()))
+                .thenAnswer(call -> {
+                    Long id = call.getArgument(2);
+                    if (id == 4L) return null;
+                    if (id == 5L) return "another-run";
+                    if (id == 9L) {
+                        // Even order 8 must not yet hold a shared ticket/price-level
+                        // lock while we wait for a standalone cleanup of order 9.
+                        verifyNoInteractions(inventory);
+                        verify(jdbcTemplate, org.mockito.Mockito.never()).update(anyString(), any(Object[].class));
+                    }
+                    return "pw-course-a1b2c3d4-order";
+                });
+        when(jdbcTemplate.update(anyString(), any(Object[].class))).thenReturn(1);
+        var result = new CourseTestCleanupService(jdbcTemplate, inventory).cleanup(new CourseCleanupRequest(
+                "a1b2c3d4", List.of(), List.of(9L, 4L, 8L, 5L, 8L), List.of(), List.of()));
+
+        assertEquals(1, result.notFound().get("order"));
+        assertEquals(1, result.rejected().get("order"));
+        assertEquals(2, result.deleted().get("order"));
+        var sequence = org.mockito.Mockito.inOrder(jdbcTemplate, inventory);
+        for (Long id : List.of(4L, 5L, 8L, 9L)) {
+            sequence.verify(jdbcTemplate).queryForObject(
+                    eq("SELECT user_remark FROM `order` WHERE id = ? FOR UPDATE"),
+                    any(org.springframework.jdbc.core.RowMapper.class), eq(id));
+        }
+        sequence.verify(inventory).restoreOnce(8L);
+        sequence.verify(inventory).restoreOnce(9L);
+        org.mockito.Mockito.verifyNoMoreInteractions(inventory);
+    }
+
     private static void assertUpdatePresent(List<String> statements, List<Object[]> values,
                                             String sqlFragment, int quantity, Long id, int cappedQuantity) {
         for (int i = 0; i < statements.size(); i++) {
