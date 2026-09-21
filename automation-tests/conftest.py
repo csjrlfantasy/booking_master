@@ -57,6 +57,18 @@ def run_id() -> str:
     return uuid.uuid4().hex[:12]
 
 
+@pytest.fixture(scope="session")
+def admin_token(booking_api: BookingApi) -> str:
+    """Resolve secrets at execution only; collection never logs in."""
+    username = _non_empty_string(os.environ.get("BOOKING_ADMIN_USERNAME"), "BOOKING_ADMIN_USERNAME")
+    password = _non_empty_string(os.environ.get("BOOKING_ADMIN_PASSWORD"), "BOOKING_ADMIN_PASSWORD")
+    try:
+        login = booking_api.login_admin(username, password)
+    finally:
+        del password
+    return login["token"]
+
+
 @pytest.fixture
 def test_data_factory(run_id: str) -> TestDataFactory:
     return TestDataFactory(run_id)

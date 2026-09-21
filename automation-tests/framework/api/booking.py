@@ -358,6 +358,173 @@ class BookingApi:
             self._client.post(path, token=token, json=payload)
         )
 
+    def login_admin(self, username: str, password: str) -> dict[str, Any]:
+        payload = {"username": _validate_non_empty_string(username, "username"),
+                   "password": _validate_non_empty_string(password, "password")}
+        data = self._client.post("/admin/login", json=payload)
+        data = _validate_mapping(data, "admin login response")
+        for field in ("userId", "expiresIn"):
+            _validate_resource_id(data.get(field), field)
+        for field in ("token", "username"):
+            _validate_non_empty_string(data.get(field), field)
+        if type(data.get("userLevel")) is not int or data["userLevel"] < 10:
+            raise ValueError("admin login requires administrator userLevel")
+        return data
+
+    def list_admin_users(self, token: str, *, page: int = 1, page_size: int = 10,
+                         keyword: str | None = None, status: int | None = None,
+                         user_type: int | None = None) -> dict[str, Any]:
+        params = _admin_page_params(page, page_size, keyword=keyword, status=status, userType=user_type)
+        return self._admin_page("users", token, params, _admin_user)
+
+    def get_admin_user(self, token: str, user_id: int) -> dict[str, Any]:
+        return _admin_user(self._admin_get("users", token, user_id))
+
+    def create_admin_user(self, token: str, payload: Mapping[str, object]) -> int:
+        payload = _validate_mapping(payload, "admin user payload")
+        for field in ("username", "password", "phone"):
+            _validate_non_empty_string(payload.get(field), field)
+        if re.fullmatch(r"1[3-9]\d{9}", payload["phone"]) is None:
+            raise ValueError("phone must be an eleven-digit mobile number")
+        return self._admin_create("users", token, payload)
+
+    def update_admin_user_status(self, token: str, user_id: int, status: int) -> None:
+        self._admin_status("users", token, user_id, status, {0, 1, 2})
+
+    def list_admin_roles(self, token: str) -> list[dict[str, Any]]:
+        data = self._client.get("/admin/roles", token=_validate_non_empty_string(token, "token"))
+        _validate_resource_list(data, "admin roles")
+        for role in data:
+            _validate_non_empty_string(role.get("roleName"), "role name")
+            _validate_non_empty_string(role.get("roleCode"), "role code")
+            _admin_integer_fields(role, ("status",))
+        return data
+
+    def assign_admin_user_roles(self, token: str, user_id: int, role_ids: Iterable[int]) -> None:
+        ids = _validate_ids(role_ids, "role ID")
+        if not ids:
+            raise ValueError("role IDs must not be empty")
+        self._admin_mutation("PUT", "users", token, user_id, "role", {"roleIds": ids})
+
+    def list_admin_tickets(self, token: str, *, page: int = 1, page_size: int = 10,
+                           keyword: str | None = None, status: int | None = None,
+                           category_id: int | None = None, is_hot: int | None = None) -> dict[str, Any]:
+        params = _admin_page_params(page, page_size, keyword=keyword, status=status,
+                                    categoryId=category_id, isHot=is_hot)
+        return self._admin_page("tickets", token, params, _admin_ticket)
+
+    def get_admin_ticket(self, token: str, ticket_id: int) -> dict[str, Any]:
+        return _admin_ticket(self._admin_get("tickets", token, ticket_id))
+
+    def create_admin_ticket(self, token: str, payload: Mapping[str, object]) -> int:
+        payload = _validate_mapping(payload, "admin ticket payload")
+        _validate_non_empty_string(payload.get("name"), "ticket name")
+        if "status" in payload:
+            _admin_enum(payload["status"], {0, 1, 2, 3, 4}, "ticket status")
+        return self._admin_create("tickets", token, payload)
+
+    def update_admin_ticket_status(self, token: str, ticket_id: int, status: int) -> None:
+        self._admin_status("tickets", token, ticket_id, status, {0, 1, 2, 3, 4})
+
+    def list_admin_orders(self, token: str, *, page: int = 1, page_size: int = 10,
+                          order_no: str | None = None, user_id: int | None = None,
+                          status: int | None = None, pay_status: int | None = None) -> dict[str, Any]:
+        params = _admin_page_params(page, page_size, orderNo=order_no, userId=user_id,
+                                    status=status, payStatus=pay_status)
+        return self._admin_page("orders", token, params, _admin_order)
+
+    def get_admin_order(self, token: str, order_id: int) -> dict[str, Any]:
+        return _admin_order(self._admin_get("orders", token, order_id))
+
+    def update_admin_order_status(self, token: str, order_id: int, status: int) -> None:
+        """Send the real route; callers must verify persistence (backend TODO)."""
+        _admin_enum(status, {1, 2, 3, 4, 5, 6}, "order status")
+        self._admin_mutation("PUT", "orders", token, order_id, "status", None, {"status": status})
+
+    def cancel_admin_order(self, token: str, order_id: int, reason: str) -> None:
+        self._admin_mutation("PUT", "orders", token, order_id, "cancel",
+                             {"cancelReason": _validate_non_empty_string(reason, "cancel reason")})
+
+    def refund_admin_order(self, token: str, order_id: int, payload: Mapping[str, object]) -> None:
+        payload = _validate_mapping(payload, "admin refund payload")
+        if payload.get("refundAmount") is not None:
+            _validate_non_negative_number(payload["refundAmount"], "refund amount")
+        for field in ("reason", "proofImages"):
+            if payload.get(field) is not None:
+                _validate_non_empty_string(payload[field], field)
+        self._admin_mutation("PUT", "orders", token, order_id, "refund", payload)
+
+    def list_admin_coupons(self, token: str, *, page: int = 1, page_size: int = 10,
+                           keyword: str | None = None, status: int | None = None) -> dict[str, Any]:
+        return self._admin_page("coupons", token, _admin_page_params(page, page_size, keyword=keyword, status=status), _admin_coupon_item)
+
+    def get_admin_coupon(self, token: str, coupon_id: int) -> dict[str, Any]:
+        # Detail returns AdminCouponCreateRequest, deliberately without an id.
+        return _admin_coupon(self._admin_get("coupons", token, coupon_id))
+
+    def create_admin_coupon(self, token: str, payload: Mapping[str, object]) -> int:
+        return self._admin_create("coupons", token, _admin_coupon_payload(payload))
+
+    def update_admin_coupon(self, token: str, coupon_id: int, payload: Mapping[str, object]) -> None:
+        self._admin_mutation("PUT", "coupons", token, coupon_id, "", _admin_coupon_payload(payload))
+
+    def update_admin_coupon_status(self, token: str, coupon_id: int, status: int) -> None:
+        self._admin_status("coupons", token, coupon_id, status, {0, 1, 2})
+
+    def issue_admin_coupon(self, token: str, coupon_id: int, user_ids: Iterable[int],
+                           *, issue_mode: str = "admin") -> None:
+        ids = _validate_ids(user_ids, "user ID")
+        if not ids:
+            raise ValueError("user IDs must not be empty")
+        payload = {"userIds": ids, "issueMode": _validate_non_empty_string(issue_mode, "issue mode")}
+        self._admin_mutation("POST", "coupons", token, coupon_id, "issue", payload)
+
+    def get_admin_overview_stats(self, token: str) -> dict[str, Any]:
+        data = self._admin_stats("overview", token)
+        _admin_integer_fields(data, ("todayOrders", "todayUsers", "todayRefunds", "pendingRefundCount", "pendingOrderCount"))
+        for field in ("todaySales", "yesterdaySales"):
+            _validate_non_negative_number(data.get(field), field)
+        if not _is_number(data.get("salesGrowth")):
+            raise ValueError("sales growth must be numeric")
+        return data
+
+    def get_admin_order_stats(self, token: str) -> dict[str, Any]:
+        data = self._admin_stats("orders", token)
+        _admin_integer_fields(data, ("totalOrders", "pendingPayOrders", "paidOrders", "completedOrders", "cancelledOrders", "refundingOrders"))
+        _admin_trend(data.get("orderStatusDistribution"), "status")
+        return data
+
+    def get_admin_user_stats(self, token: str) -> dict[str, Any]:
+        data = self._admin_stats("users", token)
+        _admin_integer_fields(data, ("totalUsers", "activeUsers", "newUsersToday", "newUsersThisWeek", "newUsersThisMonth", "vipUsers"))
+        _admin_trend(data.get("userGrowthTrend"), "date")
+        return data
+
+    def _admin_stats(self, kind: str, token: str) -> dict[str, Any]:
+        return _validate_mapping(self._client.get(f"/admin/stats/{kind}", token=_validate_non_empty_string(token, "token")), "admin stats")
+
+    def _admin_page(self, resource: str, token: str, params: dict, validator: Any) -> dict[str, Any]:
+        return _validate_page(self._client.get(f"/admin/{resource}", token=_validate_non_empty_string(token, "token"), params=params), f"admin {resource}", validator)
+
+    def _admin_get(self, resource: str, token: str, resource_id: int) -> Any:
+        _validate_resource_id(resource_id, f"{resource} ID")
+        return self._client.get(f"/admin/{resource}/{resource_id}", token=_validate_non_empty_string(token, "token"))
+
+    def _admin_create(self, resource: str, token: str, payload: dict) -> int:
+        data = self._client.post(f"/admin/{resource}", token=_validate_non_empty_string(token, "token"), json=payload)
+        _validate_resource_id(data, f"created {resource} ID")
+        return data
+
+    def _admin_status(self, resource: str, token: str, resource_id: int, status: int, allowed: set[int]) -> None:
+        _admin_enum(status, allowed, f"{resource} status")
+        self._admin_mutation("PUT", resource, token, resource_id, "status", {"status": status})
+
+    def _admin_mutation(self, method: str, resource: str, token: str, resource_id: int,
+                        action: str, payload: dict | None, params: dict | None = None) -> None:
+        _validate_resource_id(resource_id, f"{resource} ID")
+        path = f"/admin/{resource}/{resource_id}" + (f"/{action}" if action else "")
+        _validate_null_response(self._client.request(method, path, token=_validate_non_empty_string(token, "token"), json=payload, params=params), f"admin {resource} {action}")
+
     def delete_test_user(self, run_id: str, user_id: int, course_key: str) -> dict[str, Any]:
         _validate_run_id(run_id)
         _validate_resource_id(user_id, "user ID")
@@ -396,6 +563,95 @@ class BookingApi:
         if not isinstance(data, dict):
             raise ValueError("cleanup response data must be an object")
         return data
+
+
+def _admin_enum(value: object, allowed: set[int], name: str) -> None:
+    if type(value) is not int or value not in allowed:
+        raise ValueError(f"invalid {name}")
+
+
+def _admin_page_params(page: int, page_size: int, **filters: object) -> dict[str, object]:
+    params = _page_params(page, page_size)
+    for field, value in filters.items():
+        if value is None:
+            continue
+        if field in {"keyword", "orderNo"}:
+            _validate_non_empty_string(value, field)
+        elif field in {"categoryId", "userId"}:
+            _validate_resource_id(value, field)
+        else:
+            _validate_non_negative_integer(value, field)
+        params[field] = value
+    return params
+
+
+def _admin_integer_fields(data: Mapping, fields: Iterable[str]) -> None:
+    for field in fields:
+        _validate_non_negative_integer(data.get(field), field)
+
+
+def _admin_user(data: object) -> dict[str, Any]:
+    data = _validate_resource_object(data, "admin user")
+    _validate_non_empty_string(data.get("username"), "username")
+    _admin_integer_fields(data, ("status", "userType"))
+    return data
+
+
+def _admin_ticket(data: object) -> dict[str, Any]:
+    data = _validate_resource_object(data, "admin ticket")
+    _validate_non_empty_string(data.get("name"), "ticket name")
+    _admin_integer_fields(data, ("status", "availableStock"))
+    return data
+
+
+def _admin_order(data: object) -> dict[str, Any]:
+    data = _validate_resource_object(data, "admin order")
+    _validate_non_empty_string(data.get("orderNo"), "order number")
+    _validate_resource_id(data.get("userId"), "order user ID")
+    _admin_integer_fields(data, ("orderStatus", "payStatus"))
+    _validate_non_negative_number(data.get("payAmount"), "pay amount")
+    return data
+
+
+def _admin_coupon(data: object) -> dict[str, Any]:
+    data = _validate_mapping(data, "admin coupon")
+    _validate_non_empty_string(data.get("name"), "coupon name")
+    _validate_non_negative_number(data.get("couponValue"), "coupon value")
+    _admin_integer_fields(data, ("couponType", "status", "totalCount", "remainCount", "perLimit", "validityType"))
+    return data
+
+
+def _admin_coupon_item(data: object) -> dict[str, Any]:
+    return _admin_coupon(_validate_resource_object(data, "admin coupon"))
+
+
+def _admin_coupon_payload(payload: Mapping[str, object]) -> dict[str, object]:
+    payload = _validate_mapping(payload, "admin coupon payload")
+    _validate_non_empty_string(payload.get("name"), "coupon name")
+    _validate_non_negative_number(payload.get("couponValue"), "coupon value")
+    for field in ("totalCount", "perLimit"):
+        _validate_resource_id(payload.get(field), field)
+    _admin_enum(payload.get("couponType"), {1, 2, 3}, "coupon type")
+    _admin_enum(payload.get("validityType"), {1, 2}, "validity type")
+    _admin_enum(payload.get("status", 1), {0, 1, 2}, "coupon status")
+    if payload["validityType"] == 1:
+        for field in ("validStartDate", "validEndDate"):
+            _validate_non_empty_string(payload.get(field), field)
+    else:
+        _validate_resource_id(payload.get("validDays"), "valid days")
+    return payload
+
+
+def _admin_trend(data: object, dimension: str) -> None:
+    if not isinstance(data, list):
+        raise ValueError("statistics trend must be a list")
+    for item in data:
+        item = _validate_mapping(item, "statistics trend item")
+        _validate_non_negative_integer(item.get("count"), "trend count")
+        if dimension == "date":
+            _validate_non_empty_string(item.get("date"), "trend date")
+        else:
+            _validate_non_negative_integer(item.get("status"), "trend status")
 
 
 def _validate_run_id(run_id: str) -> None:

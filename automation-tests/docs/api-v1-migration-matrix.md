@@ -12,3 +12,21 @@
 | `test_payment.py` | 支付与退款 | `migrated` | `tests/api/customer/test_payment_api.py` | 已迁移至当前 PaymentController 的创建、模拟支付、状态、重复支付、退款申请、退款查询及归属契约；补偿式 cleanup 完成前禁止 live/Jenkins，二次开关仅可用于紧急隔离环境。 |
 | `test_integration.py` | 跨层购买流程 | `pending` | `tests/e2e/test_purchase_lifecycle.py`、`tests/e2e/test_coupon_purchase.py`、`tests/e2e/test_admin_customer_visibility.py` | Task 7 将以 API 准备和 UI 验证重建跨层业务流程。 |
 | `test_performance.py` | 性能/负载 | `business-changed` | 不迁移为 pytest 功能用例 | 性能验证不作为功能 pytest 负载测试迁移；其负载场景需由独立性能工具和环境容量计划处理。 |
+
+## 管理员新增覆盖（不属于旧版文件迁移状态）
+
+以下为 Task 4 新增能力；`implemented-pending-live` 仅代表离线契约通过、用例可收集，公网执行仍待部署与凭据，不能等同于业务验收通过。
+
+| 能力 | 状态 | 用例 | 证据或限制 |
+| --- | --- | --- | --- |
+| 登录、缺失凭据、客户越权 | `implemented-pending-live` | `tests/api/admin/test_admin_auth_api.py` | 账号密码仅来自环境变量；错误密码使用临时客户，避免锁定共享管理员。 |
+| 用户列表、搜索、详情、创建、禁用/恢复 | `implemented-pending-live` | `tests/api/admin/test_admin_user_api.py` | 动态创建并登记清理；回读状态并验证客户登录效果。 |
+| 角色目录 | `implemented-pending-live` | `tests/api/admin/test_admin_user_api.py` | 当前后端返回内置角色目录。 |
+| 角色分配业务效果 | `blocked-backend-todo` | `test_assigned_super_admin_role_grants_admin_access` | ADMIN-TODO-001：`AdminUserServiceImpl.assignUserRole` 仅记录日志。严格 xfail 回读新登录账户权限；请求成功不算业务通过。 |
+| 票务列表、详情、创建、上下架 | `implemented-pending-live` | `tests/api/admin/test_admin_ticket_api.py` | 仅修改 runId 前缀票务，查询验证筛选与状态。 |
+| 订单列表、详情、取消、退款 | `implemented-pending-live` | `tests/api/admin/test_admin_order_api.py` | 自建票务、客户和订单，双写入开关仍保留；管理员和客户两侧回读。 |
+| 任意订单状态更新 | `blocked-backend-todo` | `test_admin_status_update_persists_on_owned_paid_order` | ADMIN-TODO-002：`AdminOrderController.updateOrderStatus` 是空实现。严格 xfail 验证已支付订单完成状态持久化。 |
+| 优惠券创建、更新、状态、发放 | `implemented-pending-live` | `tests/api/admin/test_admin_coupon_api.py` | 仅自建模板/接收者；发放检查客户可见与库存、单人限额，保留交易开关。 |
+| 概览、订单和用户统计 | `implemented-pending-live` | `tests/api/admin/test_admin_stats_api.py` | 检查单次响应内统计关系，避免共享环境并发造成跨请求计数假失败。 |
+
+管理员用户、订单列表控制器目前未将 `startDate/endDate` 传给服务；此阶段没有声称日期筛选已覆盖。优惠券详情返回请求 DTO 而非带 ID 实体；订单状态更新使用查询参数，退款 `proofImages` 是 JSON 字符串，框架保留这些真实后端契约。
