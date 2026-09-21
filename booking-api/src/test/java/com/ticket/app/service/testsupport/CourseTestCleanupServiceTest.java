@@ -198,7 +198,7 @@ class CourseTestCleanupServiceTest {
     }
 
     @Test
-    void restoresManualAndAdminIssuedCouponStockButLeavesNonDecrementingGrantStockUnchanged() {
+    void restoresEveryCurrentCouponIssuanceRegardlessOfAdminSuppliedSourceText() {
         when(jdbcTemplate.queryForObject(anyString(), any(org.springframework.jdbc.core.RowMapper.class), eq(7L)))
                 .thenReturn("pw-course-a1b2c3d4-user");
         when(jdbcTemplate.queryForList(anyString(), any(Object[].class))).thenAnswer(invocation -> {
@@ -223,7 +223,7 @@ class CourseTestCleanupServiceTest {
         verify(jdbcTemplate, atLeastOnce()).update(sql.capture(), args.capture());
         assertUpdatePresent(sql.getAllValues(), args.getAllValues(), "UPDATE coupon SET remain_count", 1, 91L, 1);
         assertUpdatePresent(sql.getAllValues(), args.getAllValues(), "UPDATE coupon SET remain_count", 1, 93L, 1);
-        assertTrue(args.getAllValues().stream().noneMatch(values -> values.length >= 2 && Long.valueOf(92L).equals(values[1])));
+        assertUpdatePresent(sql.getAllValues(), args.getAllValues(), "UPDATE coupon SET remain_count", 1, 92L, 1);
     }
 
     @Test
@@ -336,7 +336,7 @@ class CourseTestCleanupServiceTest {
         verify(jdbcTemplate, atLeastOnce()).update(sql.capture(), any(Object[].class));
         assertEquals(1, sql.getAllValues().stream()
                 .filter(statement -> statement.contains("UPDATE ticket SET available_stock")).count());
-        verify(jdbcTemplate).queryForList("SELECT id FROM `order` WHERE user_id = ? AND user_remark LIKE ?", 7L,
+        verify(jdbcTemplate).queryForList("SELECT id FROM `order` WHERE user_id = ? AND user_remark LIKE ? FOR UPDATE", 7L,
                 "pw-course-a1b2c3d4-%");
     }
 

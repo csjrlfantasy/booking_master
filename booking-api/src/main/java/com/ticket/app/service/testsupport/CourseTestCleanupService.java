@@ -63,7 +63,7 @@ public class CourseTestCleanupService {
                           Map<String, Integer> r, Runnable delete) {
         String owner;
         try {
-            owner = jdbcTemplate.queryForObject(query, (rs,row) -> rs.getString(1), id);
+            owner = jdbcTemplate.queryForObject(query + " FOR UPDATE", (rs,row) -> rs.getString(1), id);
         } catch (EmptyResultDataAccessException missing) {
             owner = null;
         }
@@ -98,7 +98,7 @@ public class CourseTestCleanupService {
 
     private void deleteOrder(Long id, Map<String,Integer> d) {
         List<Map<String, Object>> orders = jdbcTemplate.queryForList(
-                "SELECT order_status, ticket_id, session_id FROM `order` WHERE id = ?", id);
+                "SELECT order_status, ticket_id, session_id FROM `order` WHERE id = ? FOR UPDATE", id);
         if (!orders.isEmpty()) {
             Map<String, Object> order = orders.get(0);
             Integer orderStatus = integerValue(order.get("order_status"));
@@ -115,7 +115,7 @@ public class CourseTestCleanupService {
     private List<Long> runOwnedOrderIds(Long userId, String runId) {
         String prefix = "pw-course-" + runId + "-%";
         return jdbcTemplate.queryForList(
-                        "SELECT id FROM `order` WHERE user_id = ? AND user_remark LIKE ?", userId, prefix)
+                        "SELECT id FROM `order` WHERE user_id = ? AND user_remark LIKE ? FOR UPDATE", userId, prefix)
                 .stream()
                 .map(row -> longValue(row.get("id")))
                 .toList();
@@ -126,7 +126,7 @@ public class CourseTestCleanupService {
             throw new IllegalStateException("run-owned order " + orderId + " has no ticket id");
         }
         List<Map<String, Object>> items = jdbcTemplate.queryForList(
-                "SELECT price_level_id, quantity FROM order_item WHERE order_id = ?", orderId);
+                "SELECT price_level_id, quantity FROM order_item WHERE order_id = ? FOR UPDATE", orderId);
         int totalQuantity = 0;
         for (Map<String, Object> item : items) {
             Integer quantity = integerValue(item.get("quantity"));
@@ -162,10 +162,9 @@ public class CourseTestCleanupService {
     private void restoreCouponStock(Long userId) {
         Map<Long, Integer> manualOrAdminCounts = new LinkedHashMap<>();
         for (Map<String, Object> userCoupon : jdbcTemplate.queryForList(
-                "SELECT coupon_id, source FROM user_coupon WHERE user_id = ?", userId)) {
+                "SELECT coupon_id, source FROM user_coupon WHERE user_id = ? FOR UPDATE", userId)) {
             Long couponId = longValue(userCoupon.get("coupon_id"));
-            String source = (String) userCoupon.get("source");
-            if (couponId != null && ("manual".equals(source) || "admin".equals(source))) {
+            if (couponId != null) {
                 manualOrAdminCounts.merge(couponId, 1, Integer::sum);
             }
         }

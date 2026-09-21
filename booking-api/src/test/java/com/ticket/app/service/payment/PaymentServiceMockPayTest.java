@@ -7,12 +7,14 @@ import com.ticket.app.entity.User;
 import com.ticket.app.common.exception.BusinessException;
 import com.ticket.app.repository.order.OrderRepository;
 import com.ticket.app.repository.user.UserRepository;
+import com.ticket.app.service.coupon.CouponService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -37,11 +39,15 @@ class PaymentServiceMockPayTest {
     @Mock
     private UserRepository userRepository;
 
+    @Mock
+    private CouponService couponService;
+    @Mock private JdbcTemplate jdbcTemplate;
+
     private PaymentService paymentService;
 
     @BeforeEach
     void setUp() {
-        paymentService = new PaymentServiceImpl(orderRepository, userRepository);
+        paymentService = new PaymentServiceImpl(orderRepository, userRepository, couponService, jdbcTemplate);
     }
 
     @Test
@@ -112,5 +118,21 @@ class PaymentServiceMockPayTest {
         assertEquals(Order.PAY_STATUS_UNPAID, order.getPayStatus());
         verify(userRepository).debitWechatBalance(7L, new BigDecimal("500.00"));
         verify(orderRepository, never()).updateById(argThat(updated -> Order.STATUS_PAID.equals(updated.getOrderStatus())));
+    }
+
+    @Test
+    void cancelPaymentRestoresInventoryBeforeLeavingCancelledStatus() {
+        Order order = new Order();
+        order.setId(9L); order.setUserId(7L); order.setOrderNo("ORDER-9"); order.setTicketId(11L); order.setSessionId(21L);
+        order.setOrderStatus(Order.STATUS_PENDING_PAY);
+        when(orderRepository.selectOne(any())).thenReturn(order);
+        when(jdbcTemplate.queryForList(any(String.class), any(Object[].class)))
+                .thenReturn(java.util.List.of(java.util.Map.of("price_level_id", 41L, "quantity", 2)));
+
+        paymentService.cancelPayment(7L, "ORDER-9");
+
+        verify(jdbcTemplate).update("UPDATE ticket_price_level SET available_stock = available_stock + ? WHERE id = ?", 2, 41L);
+        verify(jdbcTemplate).update("UPDATE ticket SET available_stock = available_stock + ? WHERE id = ?", 2, 11L);
+        verify(jdbcTemplate).update("UPDATE ticket_session SET available_capacity = available_capacity + ? WHERE id = ?", 2, 21L);
     }
 }

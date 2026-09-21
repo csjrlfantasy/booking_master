@@ -12,9 +12,12 @@ import com.ticket.app.entity.Order;
 import com.ticket.app.entity.User;
 import com.ticket.app.repository.order.OrderRepository;
 import com.ticket.app.repository.user.UserRepository;
+import com.ticket.app.service.coupon.CouponService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
@@ -23,85 +26,93 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.temporal.ChronoUnit;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.UUID;
 
-/**
- * 支付服务实现
- * 
- * 注意：这是一个模拟支付服务实现
- * 实际生产环境需要对接真实的支付渠道(支付宝、微信支付等)
- */
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class PaymentServiceImpl implements PaymentService {
 
     private final OrderRepository orderRepository;
     private final UserRepository userRepository;
+    private final CouponService couponService;
+    private final JdbcTemplate jdbcTemplate;
 
-    /**
-     * 支付过期时间(分钟)
-     */
     private static final int PAYMENT_EXPIRE_MINUTES = 30;
+
+    @Autowired
+    public PaymentServiceImpl(OrderRepository orderRepository, UserRepository userRepository,
+                              CouponService couponService, JdbcTemplate jdbcTemplate) {
+        this.orderRepository = orderRepository;
+        this.userRepository = userRepository;
+        this.couponService = couponService;
+        this.jdbcTemplate = jdbcTemplate;
+    }
+
+    public PaymentServiceImpl(OrderRepository orderRepository, UserRepository userRepository, CouponService couponService) {
+        this(orderRepository, userRepository, couponService, null);
+    }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
     public PaymentResultResponse createPayment(Long userId, CreatePaymentRequest request) {
-        log.info("创建支付订单: userId={}, orderNo={}, amount={}, payChannel={}", 
+        log.info("鍒涘缓鏀粯璁㈠崟: userId={}, orderNo={}, amount={}, payChannel={}",
                 userId, request.getOrderNo(), request.getAmount(), request.getPayChannel());
 
-        // 1. 查询订单
         LambdaQueryWrapper<Order> orderWrapper = new LambdaQueryWrapper<>();
         orderWrapper.eq(Order::getOrderNo, request.getOrderNo());
         orderWrapper.eq(Order::getUserId, userId);
         Order order = orderRepository.selectOne(orderWrapper);
 
         if (order == null) {
-            throw new BusinessException(ResultCode.ORDER_NOT_FOUND, "订单不存在");
+            throw new BusinessException(ResultCode.ORDER_NOT_FOUND, "璁㈠崟涓嶅瓨鍦?");
         }
 
-        // 2. 检查订单状态
         if (!Order.STATUS_PENDING_PAY.equals(order.getOrderStatus())) {
             if (Order.STATUS_PAID.equals(order.getOrderStatus())) {
-                throw new BusinessException(ResultCode.ORDER_ALREADY_PAID, "订单已支付");
+                throw new BusinessException(ResultCode.ORDER_ALREADY_PAID, "璁㈠崟宸叉敮浠?");
             }
             if (Order.STATUS_CANCELLED.equals(order.getOrderStatus())) {
-                throw new BusinessException(ResultCode.ORDER_ALREADY_CANCELLED, "订单已取消");
+                throw new BusinessException(ResultCode.ORDER_ALREADY_CANCELLED, "璁㈠崟宸插彇娑?");
             }
-            throw new BusinessException(ResultCode.ORDER_STATUS_ERROR, "订单状态不允许支付");
+            throw new BusinessException(ResultCode.ORDER_STATUS_ERROR, "璁㈠崟鐘舵€佷笉鍏佽鏀粯");
         }
 
-        // 3. 验证支付金额
         if (request.getAmount().compareTo(order.getPayAmount()) != 0) {
-            log.warn("支付金额不匹配: requestAmount={}, orderAmount={}", 
+            log.warn("鏀粯閲戦涓嶅尮閰? requestAmount={}, orderAmount={}",
                     request.getAmount(), order.getPayAmount());
-            throw new BusinessException(ResultCode.PAYMENT_AMOUNT_ERROR, "支付金额不正确");
+            throw new BusinessException(ResultCode.PAYMENT_AMOUNT_ERROR, "鏀粯閲戦涓嶆纭?");
         }
 
-        // 4. 检查订单是否过期
         if (order.getExpireTime() != null && LocalDateTime.now().isAfter(order.getExpireTime())) {
-            throw new BusinessException(ResultCode.PAYMENT_EXPIRED, "订单已过期");
+            throw new BusinessException(ResultCode.PAYMENT_EXPIRED, "璁㈠崟宸茶繃鏈?");
         }
 
-        // 5. 验证支付渠道
         if (!isValidPayChannel(request.getPayChannel())) {
-            throw new BusinessException(ResultCode.PAYMENT_CHANNEL_ERROR, "不支持的支付渠道");
+            throw new BusinessException(ResultCode.PAYMENT_CHANNEL_ERROR, "涓嶆敮鎸佺殑鏀粯娓犻亾");
         }
 
-        // 6. 更新订单支付渠道
         order.setPayChannel(request.getPayChannel());
         orderRepository.updateById(order);
 
-        // 7. 生成支付链接/二维码(模拟实现)
-        // 实际生产环境：调用支付渠道SDK获取支付二维码或跳转链接
         PaymentResultResponse response = buildPaymentResponse(order, request);
-        
-        log.info("支付订单创建成功: orderNo={}, paymentId={}", 
+        log.info("鏀粯璁㈠崟鍒涘缓鎴愬姛: orderNo={}, paymentId={}",
                 request.getOrderNo(), response.getPaymentId());
-
         return response;
+    }
+
+    private void restoreInventory(Order order) {
+        if (jdbcTemplate == null) return;
+        int total = 0;
+        for (java.util.Map<String, Object> item : jdbcTemplate.queryForList(
+                "SELECT price_level_id, quantity FROM order_item WHERE order_id = ? FOR UPDATE", order.getId())) {
+            int quantity = ((Number) item.get("quantity")).intValue();
+            total += quantity;
+            jdbcTemplate.update("UPDATE ticket_price_level SET available_stock = available_stock + ? WHERE id = ?", quantity, item.get("price_level_id"));
+        }
+        if (total > 0) {
+            jdbcTemplate.update("UPDATE ticket SET available_stock = available_stock + ? WHERE id = ?", total, order.getTicketId());
+            if (order.getSessionId() != null) jdbcTemplate.update("UPDATE ticket_session SET available_capacity = available_capacity + ? WHERE id = ?", total, order.getSessionId());
+        }
     }
 
     @Override
@@ -141,7 +152,7 @@ public class PaymentServiceImpl implements PaymentService {
 
     @Override
     public PaymentResultResponse getPaymentStatus(Long userId, String orderNo) {
-        log.info("查询支付状态: userId={}, orderNo={}", userId, orderNo);
+        log.info("鏌ヨ鏀粯鐘舵€? userId={}, orderNo={}", userId, orderNo);
 
         LambdaQueryWrapper<Order> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(Order::getOrderNo, orderNo);
@@ -149,7 +160,7 @@ public class PaymentServiceImpl implements PaymentService {
         Order order = orderRepository.selectOne(wrapper);
 
         if (order == null) {
-            throw new BusinessException(ResultCode.ORDER_NOT_FOUND, "订单不存在");
+            throw new BusinessException(ResultCode.ORDER_NOT_FOUND, "璁㈠崟涓嶅瓨鍦?");
         }
 
         return buildPaymentStatusResponse(order);
@@ -158,52 +169,50 @@ public class PaymentServiceImpl implements PaymentService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public RefundResultResponse applyRefund(Long userId, RefundRequest request) {
-        log.info("申请退款: userId={}, orderNo={}, reason={}", 
+        log.info("鐢宠閫€娆? userId={}, orderNo={}, reason={}",
                 userId, request.getOrderNo(), request.getReason());
 
-        // 1. 查询订单
         LambdaQueryWrapper<Order> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(Order::getOrderNo, request.getOrderNo());
         wrapper.eq(Order::getUserId, userId);
         Order order = orderRepository.selectOne(wrapper);
 
         if (order == null) {
-            throw new BusinessException(ResultCode.ORDER_NOT_FOUND, "订单不存在");
+            throw new BusinessException(ResultCode.ORDER_NOT_FOUND, "璁㈠崟涓嶅瓨鍦?");
         }
 
-        // 2. 检查订单状态(只有已支付订单才能申请退款)
         if (!Order.STATUS_PAID.equals(order.getOrderStatus())) {
-            throw new BusinessException(ResultCode.REFUND_NOT_ALLOWED, "只有已支付订单才能申请退款");
+            throw new BusinessException(ResultCode.REFUND_NOT_ALLOWED, "鍙湁宸叉敮浠樿鍗曟墠鑳界敵璇烽€€娆?");
         }
 
-        // 3. 检查是否已申请过退款
-        if (Order.STATUS_REFUNDING.equals(order.getOrderStatus()) || 
-            Order.STATUS_REFUNDED.equals(order.getOrderStatus())) {
-            throw new BusinessException(ResultCode.REFUND_ALREADY_PROCESSED, "退款已处理");
+        if (Order.STATUS_REFUNDING.equals(order.getOrderStatus())
+                || Order.STATUS_REFUNDED.equals(order.getOrderStatus())) {
+            throw new BusinessException(ResultCode.REFUND_ALREADY_PROCESSED, "閫€娆惧凡澶勭悊");
         }
 
-        // 4. 计算退款金额
         BigDecimal refundAmount = calculateCustomerRefundAmount(order);
 
-        // 5. 更新订单状态为退款中
         order.setOrderStatus(Order.STATUS_REFUNDING);
-        order.setRemark("退款申请: " + request.getReason());
+        order.setRemark("閫€娆剧敵璇? " + request.getReason());
         orderRepository.updateById(order);
 
-        // 6. 构建退款响应(模拟实现)
+        if (order.getUserCouponId() != null) {
+            couponService.returnCoupon(order.getUserId(), order.getId(), true);
+        }
+
         RefundResultResponse response = RefundResultResponse.builder()
                 .refundId(System.currentTimeMillis())
                 .orderNo(request.getOrderNo())
                 .payAmount(order.getPayAmount())
                 .refundAmount(refundAmount)
                 .status("PROCESSING")
-                .statusText("退款处理中")
+                .statusText("閫€娆惧鐞嗕腑")
                 .refundType("USER")
                 .reason(request.getReason())
                 .applyTime(LocalDateTime.now())
                 .build();
 
-        log.info("退款申请成功: orderNo={}, refundId={}, refundAmount={}", 
+        log.info("閫€娆剧敵璇锋垚鍔? orderNo={}, refundId={}, refundAmount={}",
                 request.getOrderNo(), response.getRefundId(), refundAmount);
 
         return response;
@@ -220,7 +229,7 @@ public class PaymentServiceImpl implements PaymentService {
         LocalDateTime showDateTime = LocalDateTime.of(showDate, showTime);
         long hoursBeforeShow = ChronoUnit.HOURS.between(LocalDateTime.now(), showDateTime);
         if (hoursBeforeShow <= 0) {
-            throw new BusinessException(ResultCode.REFUND_NOT_ALLOWED, "演出已开始，不能申请退票");
+            throw new BusinessException(ResultCode.REFUND_NOT_ALLOWED, "婕斿嚭宸插紑濮嬶紝涓嶈兘鐢宠閫€绁?");
         }
 
         BigDecimal feeRate;
@@ -238,7 +247,7 @@ public class PaymentServiceImpl implements PaymentService {
 
     @Override
     public RefundResultResponse getRefundStatus(Long userId, String orderNo) {
-        log.info("查询退款状态: userId={}, orderNo={}", userId, orderNo);
+        log.info("鏌ヨ閫€娆剧姸鎬? userId={}, orderNo={}", userId, orderNo);
 
         LambdaQueryWrapper<Order> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(Order::getOrderNo, orderNo);
@@ -246,21 +255,20 @@ public class PaymentServiceImpl implements PaymentService {
         Order order = orderRepository.selectOne(wrapper);
 
         if (order == null) {
-            throw new BusinessException(ResultCode.ORDER_NOT_FOUND, "订单不存在");
+            throw new BusinessException(ResultCode.ORDER_NOT_FOUND, "璁㈠崟涓嶅瓨鍦?");
         }
 
-        // 判断退款状态
         String status;
         String statusText;
         if (Order.STATUS_REFUNDED.equals(order.getOrderStatus())) {
             status = "SUCCESS";
-            statusText = "退款成功";
+            statusText = "閫€娆炬垚鍔?";
         } else if (Order.STATUS_REFUNDING.equals(order.getOrderStatus())) {
             status = "PROCESSING";
-            statusText = "退款处理中";
+            statusText = "閫€娆惧鐞嗕腑";
         } else {
             status = "NONE";
-            statusText = "无退款";
+            statusText = "鏃犻€€娆?";
         }
 
         return RefundResultResponse.builder()
@@ -275,7 +283,7 @@ public class PaymentServiceImpl implements PaymentService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void cancelPayment(Long userId, String orderNo) {
-        log.info("取消支付: userId={}, orderNo={}", userId, orderNo);
+        log.info("鍙栨秷鏀粯: userId={}, orderNo={}", userId, orderNo);
 
         LambdaQueryWrapper<Order> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(Order::getOrderNo, orderNo);
@@ -283,21 +291,20 @@ public class PaymentServiceImpl implements PaymentService {
         Order order = orderRepository.selectOne(wrapper);
 
         if (order == null) {
-            throw new BusinessException(ResultCode.ORDER_NOT_FOUND, "订单不存在");
+            throw new BusinessException(ResultCode.ORDER_NOT_FOUND, "璁㈠崟涓嶅瓨鍦?");
         }
 
-        // 只有待支付订单可以取消
         if (!Order.STATUS_PENDING_PAY.equals(order.getOrderStatus())) {
-            throw new BusinessException(ResultCode.ORDER_STATUS_ERROR, "当前订单状态不允许取消支付");
+            throw new BusinessException(ResultCode.ORDER_STATUS_ERROR, "褰撳墠璁㈠崟鐘舵€佷笉鍏佽鍙栨秷鏀粯");
         }
 
-        // 更新订单状态为已取消
         order.setOrderStatus(Order.STATUS_CANCELLED);
         order.setCancelTime(LocalDateTime.now());
-        order.setCancelReason("用户取消支付");
+        order.setCancelReason("鐢ㄦ埛鍙栨秷鏀粯");
         orderRepository.updateById(order);
+        restoreInventory(order);
 
-        log.info("支付取消成功: orderNo={}", orderNo);
+        log.info("鏀粯鍙栨秷鎴愬姛: orderNo={}", orderNo);
     }
 
     @Override
@@ -308,7 +315,7 @@ public class PaymentServiceImpl implements PaymentService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void handlePayCallback(String orderNo, String payChannel, String tradeNo) {
-        log.info("处理支付回调: orderNo={}, payChannel={}, tradeNo={}", 
+        log.info("澶勭悊鏀粯鍥炶皟: orderNo={}, payChannel={}, tradeNo={}",
                 orderNo, payChannel, tradeNo);
 
         LambdaQueryWrapper<Order> wrapper = new LambdaQueryWrapper<>();
@@ -316,31 +323,27 @@ public class PaymentServiceImpl implements PaymentService {
         Order order = orderRepository.selectOne(wrapper);
 
         if (order == null) {
-            log.error("支付回调订单不存在: orderNo={}", orderNo);
+            log.error("鏀粯鍥炶皟璁㈠崟涓嶅瓨鍦? orderNo={}", orderNo);
             return;
         }
 
-        // 安全检查：验证是否已支付
         if (Order.PAY_STATUS_PAID.equals(order.getPayStatus())) {
-            log.info("订单已支付，忽略回调: orderNo={}", orderNo);
+            log.info("璁㈠崟宸叉敮浠橈紝蹇界暐鍥炶皟: orderNo={}", orderNo);
             return;
         }
 
-        // 安全检查：验证订单状态
         if (!Order.STATUS_PENDING_PAY.equals(order.getOrderStatus())) {
-            log.warn("订单状态不允许支付: orderNo={}, orderStatus={}", 
+            log.warn("璁㈠崟鐘舵€佷笉鍏佽鏀粯: orderNo={}, orderStatus={}",
                     orderNo, order.getOrderStatus());
             return;
         }
 
-        // 安全检查：验证订单是否过期
         if (order.getExpireTime() != null && LocalDateTime.now().isAfter(order.getExpireTime())) {
-            log.warn("订单已过期，忽略支付回调: orderNo={}, expireTime={}", 
+            log.warn("璁㈠崟宸茶繃鏈燂紝蹇界暐鏀粯鍥炶皟: orderNo={}, expireTime={}",
                     orderNo, order.getExpireTime());
             return;
         }
 
-        // 更新支付状态
         order.setPayStatus(Order.PAY_STATUS_PAID);
         order.setOrderStatus(Order.STATUS_PAID);
         order.setPayTime(LocalDateTime.now());
@@ -348,48 +351,41 @@ public class PaymentServiceImpl implements PaymentService {
         order.setTradeNo(tradeNo);
         orderRepository.updateById(order);
 
-        log.info("订单支付成功: orderNo={}, payChannel={}, tradeNo={}", 
+        log.info("璁㈠崟鏀粯鎴愬姛: orderNo={}, payChannel={}, tradeNo={}",
                 orderNo, payChannel, tradeNo);
     }
 
-    /**
-     * 验证支付渠道是否有效
-     */
     private boolean isValidPayChannel(String payChannel) {
         if (payChannel == null) {
             return false;
         }
-        return "alipay".equalsIgnoreCase(payChannel) ||
-               "wechat".equalsIgnoreCase(payChannel) ||
-               "bank".equalsIgnoreCase(payChannel) ||
-               "unionpay".equalsIgnoreCase(payChannel);
+        return "alipay".equalsIgnoreCase(payChannel)
+                || "wechat".equalsIgnoreCase(payChannel)
+                || "bank".equalsIgnoreCase(payChannel)
+                || "unionpay".equalsIgnoreCase(payChannel);
     }
 
-    /**
-     * 构建支付响应
-     */
     private PaymentResultResponse buildPaymentResponse(Order order, CreatePaymentRequest request) {
         String status;
         String statusText;
-        
+
         if (Order.PAY_STATUS_PAID.equals(order.getPayStatus())) {
             status = "SUCCESS";
-            statusText = "支付成功";
+            statusText = "鏀粯鎴愬姛";
         } else {
             status = "PENDING";
-            statusText = "待支付";
+            statusText = "寰呮敮浠?";
         }
 
-        // 根据支付场景生成不同的支付参数(模拟实现)
         String qrCodeUrl = null;
         String payUrl = null;
-        
+
         if ("NATIVE".equalsIgnoreCase(request.getPaymentScene())) {
-            // 扫码支付场景，生成模拟二维码
-            qrCodeUrl = "https://api.example.com/qrcode/" + UUID.randomUUID().toString();
-        } else if ("H5".equalsIgnoreCase(request.getPaymentScene()) || "APP".equalsIgnoreCase(request.getPaymentScene())) {
-            // H5或APP支付场景，返回支付跳转链接
-            payUrl = "https://pay.example.com/h5?orderNo=" + order.getOrderNo() + "&amount=" + order.getPayAmount();
+            qrCodeUrl = "https://api.example.com/qrcode/" + UUID.randomUUID();
+        } else if ("H5".equalsIgnoreCase(request.getPaymentScene())
+                || "APP".equalsIgnoreCase(request.getPaymentScene())) {
+            payUrl = "https://pay.example.com/h5?orderNo=" + order.getOrderNo()
+                    + "&amount=" + order.getPayAmount();
         }
 
         return PaymentResultResponse.builder()
@@ -407,27 +403,23 @@ public class PaymentServiceImpl implements PaymentService {
                 .build();
     }
 
-    /**
-     * 构建支付状态响应
-     */
     private PaymentResultResponse buildPaymentStatusResponse(Order order) {
         String status;
         String statusText;
-        
+
         if (Order.PAY_STATUS_PAID.equals(order.getPayStatus())) {
             status = "SUCCESS";
-            statusText = "支付成功";
+            statusText = "鏀粯鎴愬姛";
         } else if (Order.PAY_STATUS_REFUNDED.equals(order.getPayStatus())) {
             status = "REFUNDED";
-            statusText = "已退款";
+            statusText = "宸查€€娆?";
         } else {
-            // 检查是否过期
             if (order.getExpireTime() != null && LocalDateTime.now().isAfter(order.getExpireTime())) {
                 status = "CLOSED";
-                statusText = "已关闭";
+                statusText = "宸插叧闂?";
             } else {
                 status = "PENDING";
-                statusText = "待支付";
+                statusText = "寰呮敮浠?";
             }
         }
 
