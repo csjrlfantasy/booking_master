@@ -47,7 +47,7 @@ public class CourseTestCleanupService {
                 deleted, notFound, rejected, () -> deleteOrder(id, deleted)));
         distinct(request.userIds()).forEach(id -> validate("user", id,
                 "SELECT username FROM user WHERE id = ?", request.runId(),
-                deleted, notFound, rejected, () -> deleteUser(id, deleted)));
+                deleted, notFound, rejected, () -> deleteUser(id, request.runId(), deleted)));
         distinct(request.ticketIds()).forEach(id -> validate("ticket", id,
                 "SELECT name FROM ticket WHERE id = ?", request.runId(),
                 deleted, notFound, rejected, () -> deleteTicket(id, deleted)));
@@ -82,12 +82,12 @@ public class CourseTestCleanupService {
         return ids.stream().distinct().toList();
     }
 
-    private void deleteUser(Long id, Map<String,Integer> d) {
-        delete("order_item", "DELETE oi FROM order_item oi JOIN `order` o ON oi.order_id=o.id WHERE o.user_id = ?", id, d);
-        delete("refund", "DELETE FROM refund WHERE user_id = ?", id, d);
-        delete("payment", "DELETE FROM payment WHERE user_id = ?", id, d);
+    private void deleteUser(Long id, String runId, Map<String,Integer> d) {
+        for (Long orderId : runOwnedOrderIds(id, runId)) {
+            deleteOrder(orderId, d);
+        }
+        restoreCouponStock(id);
         delete("user_coupon", "DELETE FROM user_coupon WHERE user_id = ?", id, d);
-        delete("order", "DELETE FROM `order` WHERE user_id = ?", id, d);
         delete("user_identity", "DELETE FROM user_identity WHERE user_id = ?", id, d);
         delete("user_auth", "DELETE FROM user_auth WHERE user_id = ?", id, d);
         delete("user_address", "DELETE FROM user_address WHERE user_id = ?", id, d);
@@ -95,11 +95,102 @@ public class CourseTestCleanupService {
         delete("user_role_relation", "DELETE FROM user_role_relation WHERE user_id = ?", id, d);
         delete("user", "DELETE FROM user WHERE id = ?", id, d);
     }
+
     private void deleteOrder(Long id, Map<String,Integer> d) {
+        List<Map<String, Object>> orders = jdbcTemplate.queryForList(
+                "SELECT order_status, ticket_id, session_id FROM `order` WHERE id = ?", id);
+        if (!orders.isEmpty()) {
+            Map<String, Object> order = orders.get(0);
+            Integer orderStatus = integerValue(order.get("order_status"));
+            if (!isInventoryAlreadyRestored(orderStatus)) {
+                restoreOrderInventory(id, longValue(order.get("ticket_id")), longValue(order.get("session_id")));
+            }
+        }
         delete("order_item", "DELETE FROM order_item WHERE order_id = ?", id, d);
         delete("refund", "DELETE FROM refund WHERE order_id = ?", id, d);
         delete("payment", "DELETE FROM payment WHERE order_id = ?", id, d);
         delete("order", "DELETE FROM `order` WHERE id = ?", id, d);
+    }
+
+    private List<Long> runOwnedOrderIds(Long userId, String runId) {
+        String prefix = "pw-course-" + runId + "-%";
+        return jdbcTemplate.queryForList(
+                        "SELECT id FROM `order` WHERE user_id = ? AND user_remark LIKE ?", userId, prefix)
+                .stream()
+                .map(row -> longValue(row.get("id")))
+                .toList();
+    }
+
+    private void restoreOrderInventory(Long orderId, Long ticketId, Long sessionId) {
+        if (ticketId == null) {
+            throw new IllegalStateException("run-owned order " + orderId + " has no ticket id");
+        }
+        List<Map<String, Object>> items = jdbcTemplate.queryForList(
+                "SELECT price_level_id, quantity FROM order_item WHERE order_id = ?", orderId);
+        int totalQuantity = 0;
+        for (Map<String, Object> item : items) {
+            Integer quantity = integerValue(item.get("quantity"));
+            if (quantity == null || quantity <= 0) {
+                throw new IllegalStateException("run-owned order " + orderId + " has invalid item quantity");
+            }
+            totalQuantity += quantity;
+            Long priceLevelId = longValue(item.get("price_level_id"));
+            if (priceLevelId != null) {
+                requireSingleUpdate(
+                        "UPDATE ticket_price_level SET available_stock = available_stock + ?, "
+                                + "sold_count = CASE WHEN COALESCE(sold_count, 0) >= ? THEN sold_count - ? ELSE 0 END "
+                                + "WHERE id = ? AND available_stock + ? <= total_stock",
+                        quantity, quantity, quantity, priceLevelId, quantity);
+            }
+        }
+        if (totalQuantity == 0) {
+            return;
+        }
+        requireSingleUpdate(
+                "UPDATE ticket SET available_stock = available_stock + ?, "
+                        + "sale_count = CASE WHEN COALESCE(sale_count, 0) >= ? THEN sale_count - ? ELSE 0 END "
+                        + "WHERE id = ? AND available_stock + ? <= total_stock",
+                totalQuantity, totalQuantity, totalQuantity, ticketId, totalQuantity);
+        if (sessionId != null) {
+            requireSingleUpdate(
+                    "UPDATE ticket_session SET available_capacity = available_capacity + ? "
+                            + "WHERE id = ? AND available_capacity + ? <= total_capacity",
+                    totalQuantity, sessionId, totalQuantity);
+        }
+    }
+
+    private void restoreCouponStock(Long userId) {
+        Map<Long, Integer> manualOrAdminCounts = new LinkedHashMap<>();
+        for (Map<String, Object> userCoupon : jdbcTemplate.queryForList(
+                "SELECT coupon_id, source FROM user_coupon WHERE user_id = ?", userId)) {
+            Long couponId = longValue(userCoupon.get("coupon_id"));
+            String source = (String) userCoupon.get("source");
+            if (couponId != null && ("manual".equals(source) || "admin".equals(source))) {
+                manualOrAdminCounts.merge(couponId, 1, Integer::sum);
+            }
+        }
+        manualOrAdminCounts.forEach((couponId, count) -> requireSingleUpdate(
+                "UPDATE coupon SET remain_count = remain_count + ? WHERE id = ? AND remain_count + ? <= total_count",
+                count, couponId, count));
+    }
+
+    private static boolean isInventoryAlreadyRestored(Integer orderStatus) {
+        // Customer cancellation and automatic expiry are the only normal paths that restore inventory.
+        return Integer.valueOf(4).equals(orderStatus);
+    }
+
+    private void requireSingleUpdate(String sql, Object... args) {
+        if (jdbcTemplate.update(sql, args) != 1) {
+            throw new IllegalStateException("course cleanup would violate an inventory invariant");
+        }
+    }
+
+    private static Long longValue(Object value) {
+        return value instanceof Number number ? number.longValue() : null;
+    }
+
+    private static Integer integerValue(Object value) {
+        return value instanceof Number number ? number.intValue() : null;
     }
     private void deleteTicket(Long id, Map<String,Integer> d) {
         delete("ticket_comment", "DELETE FROM ticket_comment WHERE ticket_id = ?", id, d);
