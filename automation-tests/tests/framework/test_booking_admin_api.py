@@ -1,6 +1,7 @@
 """Offline contracts derived from the current Java admin controllers and DTOs."""
 
 import copy
+from urllib.parse import parse_qs, urlsplit
 
 import pytest
 
@@ -34,22 +35,22 @@ def page(item):
 # name, args, kwargs, HTTP verb, path, query, body, successful data.
 CASES = [
     ("login_admin", ("course-admin", "contract-only"), {}, "POST", "/admin/login", {}, {"username": "course-admin", "password": "contract-only"}, LOGIN),
-    ("list_admin_users", (TOKEN,), {"keyword": "course", "status": 1, "user_type": 1}, "GET", "/admin/users", {"page": ["1"], "pagesize": ["10"], "keyword": ["course"], "status": ["1"], "usertype": ["1"]}, None, page(USER)),
+    ("list_admin_users", (TOKEN,), {"keyword": "course", "status": 1, "user_type": 1}, "GET", "/admin/users", {"page": ["1"], "pageSize": ["10"], "keyword": ["course"], "status": ["1"], "userType": ["1"]}, None, page(USER)),
     ("get_admin_user", (TOKEN, 17), {}, "GET", "/admin/users/17", {}, None, USER),
     ("create_admin_user", (TOKEN, REGISTER), {}, "POST", "/admin/users", {}, REGISTER, 17),
     ("update_admin_user_status", (TOKEN, 17, 0), {}, "PUT", "/admin/users/17/status", {}, {"status": 0}, None),
     ("list_admin_roles", (TOKEN,), {}, "GET", "/admin/roles", {}, None, [ROLE]),
     ("assign_admin_user_roles", (TOKEN, 17, [2]), {}, "PUT", "/admin/users/17/role", {}, {"roleIds": [2]}, None),
-    ("list_admin_tickets", (TOKEN,), {"keyword": "course", "status": 2, "category_id": 3, "is_hot": 0}, "GET", "/admin/tickets", {"page": ["1"], "pagesize": ["10"], "keyword": ["course"], "status": ["2"], "categoryid": ["3"], "ishot": ["0"]}, None, page(TICKET)),
+    ("list_admin_tickets", (TOKEN,), {"keyword": "course", "status": 2, "category_id": 3, "is_hot": 0}, "GET", "/admin/tickets", {"page": ["1"], "pageSize": ["10"], "keyword": ["course"], "status": ["2"], "categoryId": ["3"], "isHot": ["0"]}, None, page(TICKET)),
     ("get_admin_ticket", (TOKEN, 23), {}, "GET", "/admin/tickets/23", {}, None, TICKET),
     ("create_admin_ticket", (TOKEN, {"name": "course-ticket", "status": 2}), {}, "POST", "/admin/tickets", {}, {"name": "course-ticket", "status": 2}, 23),
     ("update_admin_ticket_status", (TOKEN, 23, 0), {}, "PUT", "/admin/tickets/23/status", {}, {"status": 0}, None),
-    ("list_admin_orders", (TOKEN,), {"order_no": "ORD31", "user_id": 17, "status": 1, "pay_status": 0}, "GET", "/admin/orders", {"page": ["1"], "pagesize": ["10"], "orderno": ["ord31"], "userid": ["17"], "status": ["1"], "paystatus": ["0"]}, None, page(ORDER)),
+    ("list_admin_orders", (TOKEN,), {"order_no": "ORD31", "user_id": 17, "status": 1, "pay_status": 0}, "GET", "/admin/orders", {"page": ["1"], "pageSize": ["10"], "orderNo": ["ORD31"], "userId": ["17"], "status": ["1"], "payStatus": ["0"]}, None, page(ORDER)),
     ("get_admin_order", (TOKEN, 31), {}, "GET", "/admin/orders/31", {}, None, ORDER),
     ("update_admin_order_status", (TOKEN, 31, 3), {}, "PUT", "/admin/orders/31/status", {"status": ["3"]}, None, None),
     ("cancel_admin_order", (TOKEN, 31, "course-cancel"), {}, "PUT", "/admin/orders/31/cancel", {}, {"cancelReason": "course-cancel"}, None),
     ("refund_admin_order", (TOKEN, 31, {"refundAmount": 99, "reason": "course-refund"}), {}, "PUT", "/admin/orders/31/refund", {}, {"refundAmount": 99, "reason": "course-refund"}, None),
-    ("list_admin_coupons", (TOKEN,), {"keyword": "course", "status": 1}, "GET", "/admin/coupons", {"page": ["1"], "pagesize": ["10"], "keyword": ["course"], "status": ["1"]}, None, page({"id": 41, **COUPON})),
+    ("list_admin_coupons", (TOKEN,), {"keyword": "course", "status": 1}, "GET", "/admin/coupons", {"page": ["1"], "pageSize": ["10"], "keyword": ["course"], "status": ["1"]}, None, page({"id": 41, **COUPON})),
     ("get_admin_coupon", (TOKEN, 41), {}, "GET", "/admin/coupons/41", {}, None, COUPON),
     ("create_admin_coupon", (TOKEN, COUPON), {}, "POST", "/admin/coupons", {}, COUPON, 41),
     ("update_admin_coupon", (TOKEN, 41, COUPON), {}, "PUT", "/admin/coupons/41", {}, COUPON, None),
@@ -68,9 +69,28 @@ def test_admin_wire_contract(case, requests_mock):
     with ApiClient(BASE) as client:
         assert getattr(BookingApi(client), name)(*args, **kwargs) == data
     request = requests_mock.last_request
-    assert request.qs == query
+    assert parse_qs(urlsplit(request.url).query, keep_blank_values=True) == query
     assert request.json() == body if body is not None else not request.body
     assert request.headers.get("Authorization") == (None if name == "login_admin" else "Bearer " + TOKEN)
+
+
+@pytest.mark.parametrize("mutation", ["query-name-case", "query-value-case"])
+def test_admin_wire_contract_detects_query_case_regression(monkeypatch, requests_mock, mutation):
+    """The actual wire assertion must catch case corruption before HTTP encoding."""
+    original_request = ApiClient.request
+
+    def corrupt_query(client, method, path, **kwargs):
+        params = dict(kwargs["params"])
+        if mutation == "query-name-case":
+            params["pagesize"] = params.pop("pageSize")
+        else:
+            params["orderNo"] = params["orderNo"].lower()
+        return original_request(client, method, path, **{**kwargs, "params": params})
+
+    monkeypatch.setattr(ApiClient, "request", corrupt_query)
+    case = next(case for case in CASES if case[0] == "list_admin_orders")
+    with pytest.raises(AssertionError):
+        test_admin_wire_contract(case, requests_mock)
 
 
 @pytest.mark.parametrize("case", CASES, ids=lambda c: c[0])
