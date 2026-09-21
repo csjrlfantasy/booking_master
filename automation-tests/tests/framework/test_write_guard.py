@@ -26,6 +26,19 @@ def _make_write_test(pytester):
     )
 
 
+def _make_destructive_commerce_test(pytester):
+    pytester.makepyfile(
+        """
+        import pytest
+
+        @pytest.mark.write
+        @pytest.mark.destructive_commerce
+        def test_consumes_shared_commerce_inventory():
+            assert True
+        """
+    )
+
+
 def test_read_only_collection_succeeds_without_flags(pytester, monkeypatch):
     _enable_plugin(pytester, monkeypatch)
     pytester.makepyfile("def test_read_only(): assert True")
@@ -80,6 +93,46 @@ def test_selected_write_test_executes_with_flag_and_synthetic_key(pytester, monk
     _make_write_test(pytester)
 
     result = pytester.runpytest_subprocess("--allow-write", "-q")
+
+    result.assert_outcomes(passed=1)
+
+
+def test_destructive_commerce_collection_succeeds_without_execution_authorization(
+    pytester, monkeypatch
+):
+    monkeypatch.delenv("COURSE_TEST_KEY", raising=False)
+    _enable_plugin(pytester, monkeypatch)
+    _make_destructive_commerce_test(pytester)
+
+    result = pytester.runpytest_subprocess("--collect-only", "-q")
+
+    assert result.ret == 0
+    result.stdout.fnmatch_lines(["*test_consumes_shared_commerce_inventory*"])
+
+
+def test_destructive_commerce_requires_second_explicit_authorization(
+    pytester, monkeypatch
+):
+    monkeypatch.setenv("COURSE_TEST_KEY", "synthetic-course-key")
+    _enable_plugin(pytester, monkeypatch)
+    _make_destructive_commerce_test(pytester)
+
+    result = pytester.runpytest_subprocess("--allow-write", "-q")
+
+    assert result.ret != 0
+    assert "--allow-destructive-commerce" in result.stderr.str()
+
+
+def test_destructive_commerce_executes_only_with_both_authorizations(
+    pytester, monkeypatch
+):
+    monkeypatch.setenv("COURSE_TEST_KEY", "synthetic-course-key")
+    _enable_plugin(pytester, monkeypatch)
+    _make_destructive_commerce_test(pytester)
+
+    result = pytester.runpytest_subprocess(
+        "--allow-write", "--allow-destructive-commerce", "-q"
+    )
 
     result.assert_outcomes(passed=1)
 

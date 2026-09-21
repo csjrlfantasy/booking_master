@@ -7,7 +7,12 @@ import pytest
 from framework.api.client import ApiBusinessError, ApiHttpError
 
 
-pytestmark = [pytest.mark.api, pytest.mark.write, pytest.mark.public]
+pytestmark = [
+    pytest.mark.api,
+    pytest.mark.write,
+    pytest.mark.destructive_commerce,
+    pytest.mark.public,
+]
 
 
 def _claimable_coupon(booking_api, token, *, require_minimum: bool = False):
