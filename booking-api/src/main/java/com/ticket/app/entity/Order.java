@@ -194,6 +194,11 @@ public class Order implements Serializable {
      */
     private String source;
 
+    /** Persistent fact: shared inventory has been returned for this order. */
+    @com.baomidou.mybatisplus.annotation.TableField(insertStrategy = com.baomidou.mybatisplus.annotation.FieldStrategy.NEVER,
+            updateStrategy = com.baomidou.mybatisplus.annotation.FieldStrategy.NEVER)
+    private Boolean inventoryRestored;
+
     /**
      * 创建时间
      */

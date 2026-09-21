@@ -45,16 +45,15 @@ class OrderExpirationServiceTest {
     @Mock
     private CouponService couponService;
 
+    @Mock
+    private InventoryCompensationService inventory;
     private OrderExpirationService service;
 
     @BeforeEach
     void setUp() {
         service = new OrderExpirationService(
                 orderRepository,
-                orderItemRepository,
-                ticketRepository,
-                ticketSessionRepository,
-                ticketPriceLevelRepository,
+                inventory,
                 couponService
         );
     }
@@ -78,7 +77,6 @@ class OrderExpirationServiceTest {
         item.setQuantity(2);
 
         when(orderRepository.selectList(any())).thenReturn(List.of(order));
-        when(orderItemRepository.selectList(any())).thenReturn(List.of(item));
 
         int count = service.cancelExpiredPendingOrders();
 
@@ -89,8 +87,6 @@ class OrderExpirationServiceTest {
         assertEquals("支付超时自动取消", captor.getValue().getCancelReason());
         assertTrue(captor.getValue().getCancelTime() != null);
         verify(couponService).returnCoupon(1001L, 88L);
-        verify(ticketPriceLevelRepository).restoreStock(100L, 2);
-        verify(ticketRepository).restoreStock(1L, 2);
-        verify(ticketSessionRepository).restoreCapacity(10L, 2);
+        verify(inventory).restoreOnce(88L);
     }
 }

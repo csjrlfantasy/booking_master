@@ -17,7 +17,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.jdbc.core.JdbcTemplate;
+import com.ticket.app.service.order.InventoryCompensationService;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
@@ -35,17 +35,17 @@ public class PaymentServiceImpl implements PaymentService {
     private final OrderRepository orderRepository;
     private final UserRepository userRepository;
     private final CouponService couponService;
-    private final JdbcTemplate jdbcTemplate;
+    private final InventoryCompensationService inventory;
 
     private static final int PAYMENT_EXPIRE_MINUTES = 30;
 
     @Autowired
     public PaymentServiceImpl(OrderRepository orderRepository, UserRepository userRepository,
-                              CouponService couponService, JdbcTemplate jdbcTemplate) {
+                              CouponService couponService, InventoryCompensationService inventory) {
         this.orderRepository = orderRepository;
         this.userRepository = userRepository;
         this.couponService = couponService;
-        this.jdbcTemplate = jdbcTemplate;
+        this.inventory = inventory;
     }
 
     public PaymentServiceImpl(OrderRepository orderRepository, UserRepository userRepository, CouponService couponService) {
@@ -98,21 +98,6 @@ public class PaymentServiceImpl implements PaymentService {
         log.info("鏀粯璁㈠崟鍒涘缓鎴愬姛: orderNo={}, paymentId={}",
                 request.getOrderNo(), response.getPaymentId());
         return response;
-    }
-
-    private void restoreInventory(Order order) {
-        if (jdbcTemplate == null) return;
-        int total = 0;
-        for (java.util.Map<String, Object> item : jdbcTemplate.queryForList(
-                "SELECT price_level_id, quantity FROM order_item WHERE order_id = ? FOR UPDATE", order.getId())) {
-            int quantity = ((Number) item.get("quantity")).intValue();
-            total += quantity;
-            jdbcTemplate.update("UPDATE ticket_price_level SET available_stock = available_stock + ? WHERE id = ?", quantity, item.get("price_level_id"));
-        }
-        if (total > 0) {
-            jdbcTemplate.update("UPDATE ticket SET available_stock = available_stock + ? WHERE id = ?", total, order.getTicketId());
-            if (order.getSessionId() != null) jdbcTemplate.update("UPDATE ticket_session SET available_capacity = available_capacity + ? WHERE id = ?", total, order.getSessionId());
-        }
     }
 
     @Override
@@ -302,7 +287,7 @@ public class PaymentServiceImpl implements PaymentService {
         order.setCancelTime(LocalDateTime.now());
         order.setCancelReason("鐢ㄦ埛鍙栨秷鏀粯");
         orderRepository.updateById(order);
-        restoreInventory(order);
+        inventory.restoreOnce(order.getId());
 
         log.info("鏀粯鍙栨秷鎴愬姛: orderNo={}", orderNo);
     }

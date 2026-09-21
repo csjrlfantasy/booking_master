@@ -75,6 +75,8 @@ class OrderCouponLifecycleTest {
     @Mock
     private UserCouponRepository userCouponRepository;
 
+    @Mock
+    private InventoryCompensationService inventory;
     private OrderServiceImpl orderService;
 
     @BeforeEach
@@ -86,7 +88,7 @@ class OrderCouponLifecycleTest {
                 ticketRepository,
                 ticketSessionRepository,
                 ticketPriceLevelRepository,
-                userIdentityService
+                userIdentityService, inventory
         );
     }
 
@@ -177,7 +179,6 @@ class OrderCouponLifecycleTest {
         order.setPayStatus(Order.PAY_STATUS_UNPAID);
 
         when(orderRepository.selectById(901L)).thenReturn(order);
-        when(orderItemRepository.selectList(any())).thenReturn(List.of());
 
         CancelOrderRequest request = new CancelOrderRequest();
         request.setOrderId(901L);

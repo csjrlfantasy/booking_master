@@ -23,10 +23,7 @@ import java.util.List;
 public class OrderExpirationService {
 
     private final OrderRepository orderRepository;
-    private final OrderItemRepository orderItemRepository;
-    private final TicketRepository ticketRepository;
-    private final TicketSessionRepository ticketSessionRepository;
-    private final TicketPriceLevelRepository ticketPriceLevelRepository;
+    private final InventoryCompensationService inventory;
     private final CouponService couponService;
 
     @Transactional(rollbackFor = Exception.class)
@@ -37,7 +34,9 @@ public class OrderExpirationService {
                 .eq(Order::getPayStatus, Order.PAY_STATUS_UNPAID)
                 .isNotNull(Order::getExpireTime)
                 .le(Order::getExpireTime, now)
-                .isNull(Order::getDeletedAt));
+                .isNull(Order::getDeletedAt)
+                .orderByAsc(Order::getId)
+                .last("FOR UPDATE"));
 
         int cancelled = 0;
         for (Order order : expiredOrders) {
@@ -51,7 +50,7 @@ public class OrderExpirationService {
                 couponService.returnCoupon(order.getUserId(), order.getId());
             }
 
-            restoreInventory(order);
+            inventory.restoreOnce(order.getId());
             cancelled++;
         }
 
@@ -61,30 +60,4 @@ public class OrderExpirationService {
         return cancelled;
     }
 
-    private void restoreInventory(Order order) {
-        List<OrderItem> items = orderItemRepository.selectList(new LambdaQueryWrapper<OrderItem>()
-                .eq(OrderItem::getOrderId, order.getId()));
-        if (items == null) {
-            return;
-        }
-
-        int totalQuantity = 0;
-        for (OrderItem item : items) {
-            Integer quantity = item.getQuantity();
-            if (quantity == null || quantity <= 0) {
-                continue;
-            }
-            totalQuantity += quantity;
-            if (item.getPriceLevelId() != null) {
-                ticketPriceLevelRepository.restoreStock(item.getPriceLevelId(), quantity);
-            }
-        }
-
-        if (totalQuantity > 0) {
-            ticketRepository.restoreStock(order.getTicketId(), totalQuantity);
-            if (order.getSessionId() != null) {
-                ticketSessionRepository.restoreCapacity(order.getSessionId(), totalQuantity);
-            }
-        }
-    }
 }

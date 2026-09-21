@@ -27,7 +27,7 @@ class CourseTestCleanupServiceTransactionTest {
         jdbc = new JdbcTemplate(dataSource);
         jdbc.execute("DROP ALL OBJECTS");
         jdbc.execute("CREATE TABLE user (id BIGINT PRIMARY KEY, username VARCHAR(255))");
-        jdbc.execute("CREATE TABLE `order` (id BIGINT PRIMARY KEY, user_id BIGINT, user_remark VARCHAR(255), order_status INT, ticket_id BIGINT, session_id BIGINT)");
+        jdbc.execute("CREATE TABLE `order` (id BIGINT PRIMARY KEY, user_id BIGINT, user_remark VARCHAR(255), order_status INT, ticket_id BIGINT, session_id BIGINT, inventory_restored TINYINT DEFAULT 0)");
         jdbc.execute("CREATE TABLE order_item (id BIGINT PRIMARY KEY, order_id BIGINT, price_level_id BIGINT, quantity INT)");
         jdbc.execute("CREATE TABLE ticket (id BIGINT PRIMARY KEY, total_stock INT, available_stock INT, sale_count INT)");
         jdbc.execute("CREATE TABLE ticket_price_level (id BIGINT PRIMARY KEY, total_stock INT, available_stock INT, sold_count INT)");
@@ -82,15 +82,114 @@ class CourseTestCleanupServiceTransactionTest {
         cleanup.cleanup(request(List.of(8L), List.of(7L)));
 
         assertEquals(10, scalar("SELECT available_stock FROM ticket WHERE id=11"));
+        assertEquals(0, scalar("SELECT sale_count FROM ticket WHERE id=11"));
         assertEquals(10, scalar("SELECT available_stock FROM ticket_price_level WHERE id=41"));
+        assertEquals(0, scalar("SELECT sold_count FROM ticket_price_level WHERE id=41"));
         assertEquals(10, scalar("SELECT available_capacity FROM ticket_session WHERE id=21"));
         assertEquals(10, scalar("SELECT remain_count FROM coupon WHERE id=91"));
         assertEquals(0, scalar("SELECT COUNT(*) FROM `order`"));
         assertEquals(0, scalar("SELECT COUNT(*) FROM user_coupon"));
     }
 
+    @Test
+    void cancelledThenRefundedFactCannotTriggerSecondRestoration() {
+        seedOrder(8L, 7L, 5, 11L, null);
+        jdbc.update("UPDATE `order` SET inventory_restored=1 WHERE id=8");
+        jdbc.update("INSERT INTO ticket VALUES (11,10,8,2)");
+        jdbc.update("INSERT INTO ticket_price_level VALUES (41,10,8,2)");
+        jdbc.update("INSERT INTO order_item VALUES (1,8,41,1)");
+        cleanup.cleanup(request(List.of(8L), List.of()));
+        assertEquals(8, scalar("SELECT available_stock FROM ticket WHERE id=11"));
+        assertEquals(2, scalar("SELECT sale_count FROM ticket WHERE id=11"));
+    }
+
+    @Test
+    void statusAloneNeverSuppressesUnrestoredInventory() {
+        for (int status : List.of(1,2,3,4,5,6)) {
+            seedOrder((long)status, 7L, status, 11L, null);
+            jdbc.update("INSERT INTO order_item VALUES (?,?,41,1)", status, status);
+        }
+        jdbc.update("INSERT INTO ticket VALUES (11,10,4,6)");
+        jdbc.update("INSERT INTO ticket_price_level VALUES (41,10,4,6)");
+        cleanup.cleanup(request(List.of(6L,5L,4L,3L,2L,1L), List.of()));
+        assertEquals(10, scalar("SELECT available_stock FROM ticket WHERE id=11"));
+        assertEquals(0, scalar("SELECT sale_count FROM ticket WHERE id=11"));
+    }
+
+    @Test
+    void couponCapFailureRollsBackAlreadyRestoredAndDeletedOrder() {
+        jdbc.update("INSERT INTO user VALUES (7, 'pw-course-a1b2c3d4-user')");
+        seedOrder(8L, 7L, 1, 11L, null);
+        jdbc.update("INSERT INTO ticket VALUES (11,10,9,1)");
+        jdbc.update("INSERT INTO ticket_price_level VALUES (41,10,9,1)");
+        jdbc.update("INSERT INTO order_item VALUES (1,8,41,1)");
+        jdbc.update("INSERT INTO coupon VALUES (91,10,10)");
+        jdbc.update("INSERT INTO user_coupon VALUES (1,7,91,'order')");
+        assertThrows(IllegalStateException.class, () -> cleanup.cleanupUser("a1b2c3d4", 7L));
+        assertEquals(9, scalar("SELECT available_stock FROM ticket WHERE id=11"));
+        assertEquals(1, scalar("SELECT sale_count FROM ticket WHERE id=11"));
+        assertEquals(0, scalar("SELECT inventory_restored FROM `order` WHERE id=8"));
+        assertEquals(1, scalar("SELECT COUNT(*) FROM order_item"));
+        assertEquals(1, scalar("SELECT COUNT(*) FROM user"));
+    }
+
+    @Test
+    void unknownLegacyAndRejectedOwnerNeverMutateInventory() {
+        seedOrder(8L, 7L, 4, 11L, null);
+        jdbc.update("UPDATE `order` SET inventory_restored=NULL WHERE id=8");
+        assertThrows(IllegalStateException.class, () -> cleanup.cleanup(request(List.of(8L), List.of())));
+        jdbc.update("UPDATE `order` SET user_remark='another-run' WHERE id=8");
+        var result = cleanup.cleanup(request(List.of(8L), List.of()));
+        assertEquals(1, result.rejected().get("order"));
+        assertEquals(1, scalar("SELECT COUNT(*) FROM `order`"));
+    }
+
+    @Test
+    void restoresAllCurrentSourcesIncludingBoundAndUsedCouponsOnce() {
+        jdbc.execute("ALTER TABLE user_coupon ADD status INT DEFAULT 0");
+        jdbc.execute("ALTER TABLE user_coupon ADD order_id BIGINT");
+        jdbc.update("INSERT INTO user VALUES (7, 'pw-course-a1b2c3d4-user')");
+        seedOrder(8L,7L,5,11L,null);
+        jdbc.update("UPDATE `order` SET inventory_restored=1 WHERE id=8");
+        jdbc.update("INSERT INTO coupon VALUES (91,10,4)");
+        int id=0;
+        for (String source : List.of("manual","admin","register","order","activity","custom")) {
+            jdbc.update("INSERT INTO user_coupon VALUES (?,7,91,?,?,8)", ++id, source, id % 3);
+        }
+        cleanup.cleanupUser("a1b2c3d4",7L);
+        var retry = cleanup.cleanupUser("a1b2c3d4",7L);
+        assertEquals(10, scalar("SELECT remain_count FROM coupon WHERE id=91"));
+        assertEquals(0, scalar("SELECT COUNT(*) FROM user_coupon"));
+        assertEquals(1, retry.notFound().get("user"));
+    }
+
+    @Test
+    void overlappingOrderAndUserCleanupRestoresExactlyOnce() throws Exception {
+        jdbc.update("INSERT INTO user VALUES (7, 'pw-course-a1b2c3d4-user')");
+        seedOrder(8L, 7L, 1, 11L, null);
+        jdbc.update("INSERT INTO ticket VALUES (11,10,9,1)");
+        jdbc.update("INSERT INTO ticket_price_level VALUES (41,10,9,1)");
+        jdbc.update("INSERT INTO order_item VALUES (1,8,41,1)");
+        jdbc.update("INSERT INTO coupon VALUES (91,10,9)");
+        jdbc.update("INSERT INTO user_coupon VALUES (1,7,91,'custom-admin')");
+        var pool = java.util.concurrent.Executors.newFixedThreadPool(2);
+        var start = new java.util.concurrent.CountDownLatch(1);
+        try {
+            var order = pool.submit(() -> { start.await(); return cleanup.cleanup(request(List.of(8L), List.of())); });
+            var user = pool.submit(() -> { start.await(); return cleanup.cleanupUser("a1b2c3d4", 7L); });
+            start.countDown();
+            order.get(5, java.util.concurrent.TimeUnit.SECONDS);
+            user.get(5, java.util.concurrent.TimeUnit.SECONDS);
+            assertEquals(10, scalar("SELECT available_stock FROM ticket WHERE id=11"));
+            assertEquals(0, scalar("SELECT sale_count FROM ticket WHERE id=11"));
+            assertEquals(10, scalar("SELECT remain_count FROM coupon WHERE id=91"));
+            assertEquals(0, scalar("SELECT COUNT(*) FROM user"));
+            assertEquals(0, scalar("SELECT COUNT(*) FROM `order`"));
+        } finally { pool.shutdownNow(); }
+    }
+
     private void seedOrder(Long id, Long userId, int status, Long ticketId, Long sessionId) {
-        jdbc.update("INSERT INTO `order` VALUES (?, ?, ?, ?, ?, ?)", id, userId,
+        jdbc.update("INSERT INTO `order` (id,user_id,user_remark,order_status,ticket_id,session_id) VALUES (?, ?, ?, ?, ?, ?)", id, userId,
                 "pw-course-a1b2c3d4-order", status, ticketId, sessionId);
     }
 

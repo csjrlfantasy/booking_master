@@ -27,8 +27,8 @@ import com.ticket.app.repository.ticket.TicketRepository;
 import com.ticket.app.repository.ticket.TicketSessionRepository;
 import com.ticket.app.service.coupon.CouponService;
 import com.ticket.app.service.user.UserIdentityService;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -42,7 +42,6 @@ import java.util.stream.Collectors;
 
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class OrderServiceImpl implements OrderService {
 
     private static final int ORDER_EXPIRE_MINUTES = 15;
@@ -54,6 +53,34 @@ public class OrderServiceImpl implements OrderService {
     private final TicketSessionRepository ticketSessionRepository;
     private final TicketPriceLevelRepository ticketPriceLevelRepository;
     private final UserIdentityService userIdentityService;
+    private final InventoryCompensationService inventory;
+
+    @Autowired
+    public OrderServiceImpl(
+            OrderRepository orderRepository,
+            OrderItemRepository orderItemRepository,
+            CouponService couponService,
+            TicketRepository ticketRepository,
+            TicketSessionRepository ticketSessionRepository,
+            TicketPriceLevelRepository ticketPriceLevelRepository,
+            UserIdentityService userIdentityService, InventoryCompensationService inventory) {
+        this.orderRepository = orderRepository;
+        this.orderItemRepository = orderItemRepository;
+        this.couponService = couponService;
+        this.ticketRepository = ticketRepository;
+        this.ticketSessionRepository = ticketSessionRepository;
+        this.ticketPriceLevelRepository = ticketPriceLevelRepository;
+        this.userIdentityService = userIdentityService;
+        this.inventory = inventory;
+    }
+
+    public OrderServiceImpl(OrderRepository orderRepository, OrderItemRepository orderItemRepository,
+                            CouponService couponService, TicketRepository ticketRepository,
+                            TicketSessionRepository ticketSessionRepository, TicketPriceLevelRepository ticketPriceLevelRepository,
+                            UserIdentityService userIdentityService) {
+        this(orderRepository, orderItemRepository, couponService, ticketRepository, ticketSessionRepository,
+                ticketPriceLevelRepository, userIdentityService, null);
+    }
 
     public OrderServiceImpl(
             OrderRepository orderRepository,
@@ -342,28 +369,7 @@ public class OrderServiceImpl implements OrderService {
             }
         }
 
-        LambdaQueryWrapper<OrderItem> itemWrapper = new LambdaQueryWrapper<>();
-        itemWrapper.eq(OrderItem::getOrderId, order.getId());
-        List<OrderItem> orderItems = orderItemRepository.selectList(itemWrapper);
-        int totalQuantity = 0;
-        if (orderItems != null) {
-            for (OrderItem item : orderItems) {
-                Integer quantity = item.getQuantity();
-                if (quantity == null || quantity <= 0) {
-                    continue;
-                }
-                totalQuantity += quantity;
-                if (item.getPriceLevelId() != null) {
-                    ticketPriceLevelRepository.restoreStock(item.getPriceLevelId(), quantity);
-                }
-            }
-        }
-        if (totalQuantity > 0) {
-            ticketRepository.restoreStock(order.getTicketId(), totalQuantity);
-            if (order.getSessionId() != null) {
-                ticketSessionRepository.restoreCapacity(order.getSessionId(), totalQuantity);
-            }
-        }
+        inventory.restoreOnce(order.getId());
 
         log.info("cancelled order: userId={}, orderId={}, orderNo={}", userId, request.getOrderId(), order.getOrderNo());
     }
@@ -435,6 +441,7 @@ public class OrderServiceImpl implements OrderService {
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public void updateOrderStatus(Long userId, Long orderId, Integer status) {
         Order order = orderRepository.selectById(orderId);
         if (order == null) {
@@ -445,6 +452,7 @@ public class OrderServiceImpl implements OrderService {
         }
         order.setOrderStatus(status);
         orderRepository.updateById(order);
+        if (Order.STATUS_CANCELLED.equals(status)) inventory.restoreOnce(orderId);
         log.info("updated order status: userId={}, orderId={}, status={}", userId, orderId, status);
     }
 

@@ -21,7 +21,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.jdbc.core.JdbcTemplate;
+import com.ticket.app.service.order.InventoryCompensationService;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
@@ -39,16 +39,16 @@ public class AdminOrderServiceImpl implements AdminOrderService {
     private final OrderRepository orderRepository;
     private final UserRepository userRepository;
     private final CouponService couponService;
-    private final JdbcTemplate jdbcTemplate;
+    private final InventoryCompensationService inventory;
 
     @Autowired
     public AdminOrderServiceImpl(AdminOrderRepository adminOrderRepository, OrderRepository orderRepository,
-                                 UserRepository userRepository, CouponService couponService, JdbcTemplate jdbcTemplate) {
+                                 UserRepository userRepository, CouponService couponService, InventoryCompensationService inventory) {
         this.adminOrderRepository = adminOrderRepository;
         this.orderRepository = orderRepository;
         this.userRepository = userRepository;
         this.couponService = couponService;
-        this.jdbcTemplate = jdbcTemplate;
+        this.inventory = inventory;
     }
 
     public AdminOrderServiceImpl(AdminOrderRepository adminOrderRepository, OrderRepository orderRepository,
@@ -130,24 +130,9 @@ public class AdminOrderServiceImpl implements AdminOrderService {
         order.setCancelReason(request.getCancelReason());
         order.setUpdatedAt(LocalDateTime.now());
         orderRepository.updateById(order);
-        restoreInventory(order);
+        inventory.restoreOnce(order.getId());
 
         log.info("admin cancelled order: orderId={}, reason={}", orderId, request.getCancelReason());
-    }
-
-    private void restoreInventory(Order order) {
-        if (jdbcTemplate == null) return;
-        int total = 0;
-        for (Map<String, Object> item : jdbcTemplate.queryForList(
-                "SELECT price_level_id, quantity FROM order_item WHERE order_id = ? FOR UPDATE", order.getId())) {
-            int quantity = ((Number) item.get("quantity")).intValue();
-            total += quantity;
-            jdbcTemplate.update("UPDATE ticket_price_level SET available_stock = available_stock + ? WHERE id = ?", quantity, item.get("price_level_id"));
-        }
-        if (total > 0) {
-            jdbcTemplate.update("UPDATE ticket SET available_stock = available_stock + ? WHERE id = ?", total, order.getTicketId());
-            if (order.getSessionId() != null) jdbcTemplate.update("UPDATE ticket_session SET available_capacity = available_capacity + ? WHERE id = ?", total, order.getSessionId());
-        }
     }
 
     @Override

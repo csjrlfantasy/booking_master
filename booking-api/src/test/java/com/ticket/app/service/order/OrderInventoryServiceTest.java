@@ -54,6 +54,8 @@ class OrderInventoryServiceTest {
     @Mock
     private TicketPriceLevelRepository ticketPriceLevelRepository;
 
+    @Mock
+    private InventoryCompensationService inventory;
     private OrderServiceImpl orderService;
 
     @BeforeEach
@@ -64,7 +66,7 @@ class OrderInventoryServiceTest {
                 couponService,
                 ticketRepository,
                 ticketSessionRepository,
-                ticketPriceLevelRepository
+                ticketPriceLevelRepository, null, inventory
         );
     }
 
@@ -114,14 +116,11 @@ class OrderInventoryServiceTest {
         request.setCancelReason("changed mind");
 
         when(orderRepository.selectById(88L)).thenReturn(createPendingOrder());
-        when(orderItemRepository.selectList(any())).thenReturn(List.of(createOrderItem()));
 
         orderService.cancelOrder(7L, request);
 
         verify(orderRepository).updateById(any());
-        verify(ticketPriceLevelRepository).restoreStock(100L, 2);
-        verify(ticketRepository).restoreStock(1L, 2);
-        verify(ticketSessionRepository).restoreCapacity(10L, 2);
+        verify(inventory).restoreOnce(88L);
     }
 
     @Test
@@ -150,6 +149,13 @@ class OrderInventoryServiceTest {
         assertEquals("票档库存不足", exception.getMessage());
         verify(orderRepository, never()).insert(any());
         verify(orderItemRepository, never()).insert(any());
+    }
+
+    @Test
+    void directCancelledStatusUsesSharedCompensation() {
+        when(orderRepository.selectById(88L)).thenReturn(createPendingOrder());
+        orderService.updateOrderStatus(7L, 88L, Order.STATUS_CANCELLED);
+        verify(inventory).restoreOnce(88L);
     }
 
     private CreateOrderRequest createOrderRequest(BigDecimal unitPrice, int quantity) {

@@ -30,10 +30,12 @@ class CourseTestCleanupServiceTest {
 
     @Mock
     JdbcTemplate jdbcTemplate;
+    @Mock
+    com.ticket.app.service.order.InventoryCompensationService inventory;
 
     @Test
     void rejectsUnsafeRunIdBeforeSql() {
-        CourseTestCleanupService service = new CourseTestCleanupService(jdbcTemplate);
+        CourseTestCleanupService service = new CourseTestCleanupService(jdbcTemplate, inventory);
 
         CourseCleanupRequest request = new CourseCleanupRequest("../unsafe", List.of(), List.of(), List.of(), List.of());
         assertThrows(IllegalArgumentException.class, () -> service.cleanup(request));
@@ -42,7 +44,7 @@ class CourseTestCleanupServiceTest {
 
     @Test
     void usesRunScopedPrefixAndIsIdempotent() {
-        CourseTestCleanupService service = new CourseTestCleanupService(jdbcTemplate);
+        CourseTestCleanupService service = new CourseTestCleanupService(jdbcTemplate, inventory);
 
         CourseCleanupRequest request = new CourseCleanupRequest("a1b2c3d4", List.of(), List.of(), List.of(), List.of());
         CourseCleanupResponse first = service.cleanup(request);
@@ -57,14 +59,14 @@ class CourseTestCleanupServiceTest {
     void deletesDependenciesBeforeOwnedUsers() {
         when(jdbcTemplate.update(anyString(), any(Object[].class))).thenReturn(1);
         when(jdbcTemplate.queryForObject(anyString(), any(org.springframework.jdbc.core.RowMapper.class), any())).thenReturn("pw-course-a1b2c3d4-owner");
-        CourseTestCleanupService service = new CourseTestCleanupService(jdbcTemplate);
+        CourseTestCleanupService service = new CourseTestCleanupService(jdbcTemplate, inventory);
 
         CourseCleanupRequest request = new CourseCleanupRequest("a1b2c3d4", List.of(7L), List.of(8L), List.of(), List.of());
         service.cleanup(request);
 
         ArgumentCaptor<String> ownershipQueries = ArgumentCaptor.forClass(String.class);
         verify(jdbcTemplate, atLeastOnce()).queryForObject(ownershipQueries.capture(), any(org.springframework.jdbc.core.RowMapper.class), any());
-        assertTrue(ownershipQueries.getAllValues().get(0).contains("user_remark"));
+        assertTrue(ownershipQueries.getAllValues().get(0).contains("username"));
 
         ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
         verify(jdbcTemplate, atLeastOnce()).update(sql.capture(), any(Object[].class));
@@ -96,7 +98,7 @@ class CourseTestCleanupServiceTest {
         when(jdbcTemplate.update(anyString(), any(Object[].class))).thenReturn(1);
         CourseCleanupRequest request = new CourseCleanupRequest("a1b2c3d4", List.of(1L, 2L, 3L), List.of(), List.of(), List.of());
 
-        CourseCleanupResponse response = new CourseTestCleanupService(jdbcTemplate).cleanup(request);
+        CourseCleanupResponse response = new CourseTestCleanupService(jdbcTemplate, inventory).cleanup(request);
 
         assertEquals(1, response.deleted().get("user"));
         assertEquals(1, response.notFound().get("user"));
@@ -113,7 +115,7 @@ class CourseTestCleanupServiceTest {
                 .thenAnswer(invocation -> "pw-course-a1b2c3d4evil");
         CourseCleanupRequest request = new CourseCleanupRequest(
                 "a1b2c3d4", List.of(4L, 4L), List.of(), List.of(), List.of());
-        CourseCleanupResponse response = new CourseTestCleanupService(jdbcTemplate).cleanup(request);
+        CourseCleanupResponse response = new CourseTestCleanupService(jdbcTemplate, inventory).cleanup(request);
 
         assertEquals(1, response.rejected().get("user"));
         assertEquals(0, response.deleted().getOrDefault("user", 0));
@@ -127,7 +129,7 @@ class CourseTestCleanupServiceTest {
         when(jdbcTemplate.update(anyString(), any(Object[].class))).thenReturn(1);
 
         CourseCleanupResponse response =
-                new CourseTestCleanupService(jdbcTemplate).cleanupUser("a1b2c3d4", 7L);
+                new CourseTestCleanupService(jdbcTemplate, inventory).cleanupUser("a1b2c3d4", 7L);
 
         assertEquals(1, response.deleted().get("user"));
         assertEquals(0, response.rejected().getOrDefault("user", 0));
@@ -139,62 +141,10 @@ class CourseTestCleanupServiceTest {
                 .thenReturn("pw-course-deadbeef-user");
 
         CourseCleanupResponse response =
-                new CourseTestCleanupService(jdbcTemplate).cleanupUser("a1b2c3d4", 7L);
+                new CourseTestCleanupService(jdbcTemplate, inventory).cleanupUser("a1b2c3d4", 7L);
 
         assertEquals(1, response.rejected().get("user"));
         verify(jdbcTemplate, times(0)).update(anyString(), any(Object[].class));
-    }
-
-    @Test
-    void compensatesPendingOrderInventoryBeforeDeletingItsRows() {
-        when(jdbcTemplate.queryForObject(anyString(), any(org.springframework.jdbc.core.RowMapper.class), eq(8L)))
-                .thenReturn("pw-course-a1b2c3d4-order");
-        when(jdbcTemplate.queryForList(anyString(), any(Object[].class))).thenAnswer(invocation -> {
-            String sql = invocation.getArgument(0);
-            if (sql.contains("order_status")) {
-                return List.of(Map.of("order_status", 1, "ticket_id", 11L, "session_id", 21L));
-            }
-            if (sql.contains("price_level_id")) {
-                return List.of(
-                        Map.of("price_level_id", 41L, "quantity", 2),
-                        Map.of("price_level_id", 42L, "quantity", 1));
-            }
-            return List.of();
-        });
-        when(jdbcTemplate.update(anyString(), any(Object[].class))).thenReturn(1);
-
-        new CourseTestCleanupService(jdbcTemplate).cleanup(new CourseCleanupRequest(
-                "a1b2c3d4", List.of(), List.of(8L), List.of(), List.of()));
-
-        ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
-        ArgumentCaptor<Object[]> args = ArgumentCaptor.forClass(Object[].class);
-        verify(jdbcTemplate, atLeastOnce()).update(sql.capture(), args.capture());
-        assertUpdatePresent(sql.getAllValues(), args.getAllValues(), "ticket_price_level", 2, 41L, 2);
-        assertUpdatePresent(sql.getAllValues(), args.getAllValues(), "ticket_price_level", 1, 42L, 1);
-        assertUpdatePresent(sql.getAllValues(), args.getAllValues(), "UPDATE ticket SET available_stock", 3, 11L, 3);
-        assertUpdatePresent(sql.getAllValues(), args.getAllValues(), "UPDATE ticket_session SET available_capacity", 3, 21L, 3);
-    }
-
-    @Test
-    void doesNotCompensateCancelledOrderBecauseItsNormalLifecycleAlreadyRestoredInventory() {
-        when(jdbcTemplate.queryForObject(anyString(), any(org.springframework.jdbc.core.RowMapper.class), eq(8L)))
-                .thenReturn("pw-course-a1b2c3d4-order");
-        when(jdbcTemplate.queryForList(anyString(), any(Object[].class))).thenAnswer(invocation -> {
-            String sql = invocation.getArgument(0);
-            if (sql.contains("order_status")) {
-                return List.of(Map.of("order_status", 4, "ticket_id", 11L, "session_id", 21L));
-            }
-            return List.of();
-        });
-        when(jdbcTemplate.update(anyString(), any(Object[].class))).thenReturn(1);
-
-        new CourseTestCleanupService(jdbcTemplate).cleanup(new CourseCleanupRequest(
-                "a1b2c3d4", List.of(), List.of(8L), List.of(), List.of()));
-
-        ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
-        verify(jdbcTemplate, atLeastOnce()).update(sql.capture(), any(Object[].class));
-        assertTrue(sql.getAllValues().stream().noneMatch(statement -> statement.contains("available_stock = available_stock +")
-                || statement.contains("available_capacity = available_capacity +")));
     }
 
     @Test
@@ -216,7 +166,7 @@ class CourseTestCleanupServiceTest {
         });
         when(jdbcTemplate.update(anyString(), any(Object[].class))).thenReturn(1);
 
-        new CourseTestCleanupService(jdbcTemplate).cleanupUser("a1b2c3d4", 7L);
+        new CourseTestCleanupService(jdbcTemplate, inventory).cleanupUser("a1b2c3d4", 7L);
 
         ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
         ArgumentCaptor<Object[]> args = ArgumentCaptor.forClass(Object[].class);
@@ -226,118 +176,30 @@ class CourseTestCleanupServiceTest {
         assertUpdatePresent(sql.getAllValues(), args.getAllValues(), "UPDATE coupon SET remain_count", 1, 92L, 1);
     }
 
-    @Test
-    void failsBeforeDeletingOrderWhenInventoryRestoreWouldExceedItsTotal() {
-        when(jdbcTemplate.queryForObject(anyString(), any(org.springframework.jdbc.core.RowMapper.class), eq(8L)))
-                .thenReturn("pw-course-a1b2c3d4-order");
-        when(jdbcTemplate.queryForList(anyString(), any(Object[].class))).thenAnswer(invocation -> {
-            String sql = invocation.getArgument(0);
-            if (sql.contains("order_status")) {
-                return List.of(Map.of("order_status", 1, "ticket_id", 11L, "session_id", 21L));
-            }
-            if (sql.contains("price_level_id")) {
-                return List.of(Map.of("price_level_id", 41L, "quantity", 2));
-            }
-            return List.of();
-        });
-        when(jdbcTemplate.update(anyString(), any(Object[].class))).thenAnswer(invocation -> {
-            String sql = invocation.getArgument(0);
-            return sql.contains("ticket_price_level") ? 0 : 1;
-        });
-
-        assertThrows(IllegalStateException.class, () -> new CourseTestCleanupService(jdbcTemplate).cleanup(
-                new CourseCleanupRequest("a1b2c3d4", List.of(), List.of(8L), List.of(), List.of())));
-
-        ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
-        verify(jdbcTemplate, atLeastOnce()).update(sql.capture(), any(Object[].class));
-        assertTrue(sql.getAllValues().stream().noneMatch(statement -> statement.startsWith("DELETE FROM `order`")));
-    }
 
     @Test
-    void compensatesPaidAndRefundStatesBecauseTheirCurrentLifecycleDoesNotRestoreInventory() {
+    void delegatesOnlyValidatedOrdersToPersistentCompensation() {
         when(jdbcTemplate.queryForObject(anyString(), any(org.springframework.jdbc.core.RowMapper.class), any()))
-                .thenReturn("pw-course-a1b2c3d4-order");
-        when(jdbcTemplate.queryForList(anyString(), any(Object[].class))).thenAnswer(invocation -> {
-            String sql = invocation.getArgument(0);
-            if (sql.contains("order_status")) {
-                Long orderId = invocation.getArgument(1);
-                int status = Long.valueOf(8L).equals(orderId) ? 2 : Long.valueOf(9L).equals(orderId) ? 5 : 6;
-                return List.of(Map.of("order_status", status, "ticket_id", 11L, "session_id", 21L));
-            }
-            if (sql.contains("price_level_id")) {
-                return List.of(Map.of("price_level_id", 41L, "quantity", 1));
-            }
-            return List.of();
-        });
+                .thenAnswer(call -> ((Long)call.getArgument(2)) == 8L ? "pw-course-a1b2c3d4-order" : "unowned");
         when(jdbcTemplate.update(anyString(), any(Object[].class))).thenReturn(1);
-
-        new CourseTestCleanupService(jdbcTemplate).cleanup(new CourseCleanupRequest(
-                "a1b2c3d4", List.of(), List.of(8L, 9L, 10L), List.of(), List.of()));
-
-        ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
-        verify(jdbcTemplate, atLeastOnce()).update(sql.capture(), any(Object[].class));
-        assertEquals(3, sql.getAllValues().stream()
-                .filter(statement -> statement.contains("UPDATE ticket SET available_stock")).count());
+        new CourseTestCleanupService(jdbcTemplate, inventory).cleanup(new CourseCleanupRequest(
+                "a1b2c3d4", List.of(), List.of(9L, 8L, 8L), List.of(), List.of()));
+        verify(inventory).restoreOnce(8L);
+        org.mockito.Mockito.verifyNoMoreInteractions(inventory);
     }
 
     @Test
-    void handlesOrderWithoutSessionWithoutAttemptingSessionCapacityRestore() {
-        when(jdbcTemplate.queryForObject(anyString(), any(org.springframework.jdbc.core.RowMapper.class), eq(8L)))
-                .thenReturn("pw-course-a1b2c3d4-order");
-        when(jdbcTemplate.queryForList(anyString(), any(Object[].class))).thenAnswer(invocation -> {
-            String sql = invocation.getArgument(0);
-            if (sql.contains("order_status")) {
-                Map<String, Object> order = new java.util.HashMap<>();
-                order.put("order_status", 1);
-                order.put("ticket_id", 11L);
-                order.put("session_id", null);
-                return List.of(order);
-            }
-            if (sql.contains("price_level_id")) {
-                return List.of(Map.of("price_level_id", 41L, "quantity", 1));
-            }
-            return List.of();
-        });
-        when(jdbcTemplate.update(anyString(), any(Object[].class))).thenReturn(1);
-
-        new CourseTestCleanupService(jdbcTemplate).cleanup(new CourseCleanupRequest(
-                "a1b2c3d4", List.of(), List.of(8L), List.of(), List.of()));
-
-        ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
-        verify(jdbcTemplate, atLeastOnce()).update(sql.capture(), any(Object[].class));
-        assertTrue(sql.getAllValues().stream().noneMatch(statement -> statement.contains("ticket_session")));
-    }
-
-    @Test
-    void orderThenUserCleanupDoesNotRepeatCompensationAfterTheOrderWasDeleted() {
+    void locksAllUsersBeforeGloballySortedOrders() {
         when(jdbcTemplate.queryForObject(anyString(), any(org.springframework.jdbc.core.RowMapper.class), any()))
-                .thenAnswer(invocation -> Long.valueOf(7L).equals(invocation.getArgument(2))
-                        ? "pw-course-a1b2c3d4-user" : "pw-course-a1b2c3d4-order");
-        when(jdbcTemplate.queryForList(anyString(), any(Object[].class))).thenAnswer(invocation -> {
-            String sql = invocation.getArgument(0);
-            if (sql.startsWith("SELECT id FROM `order`")) {
-                return List.of();
-            }
-            if (sql.contains("order_status")) {
-                return List.of(Map.of("order_status", 1, "ticket_id", 11L, "session_id", 21L));
-            }
-            if (sql.contains("price_level_id")) {
-                return List.of(Map.of("price_level_id", 41L, "quantity", 1));
-            }
-            return List.of();
-        });
+                .thenReturn("pw-course-a1b2c3d4-owned");
         when(jdbcTemplate.update(anyString(), any(Object[].class))).thenReturn(1);
-
-        CourseTestCleanupService service = new CourseTestCleanupService(jdbcTemplate);
-        service.cleanup(new CourseCleanupRequest("a1b2c3d4", List.of(), List.of(8L), List.of(), List.of()));
-        service.cleanupUser("a1b2c3d4", 7L);
-
-        ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
-        verify(jdbcTemplate, atLeastOnce()).update(sql.capture(), any(Object[].class));
-        assertEquals(1, sql.getAllValues().stream()
-                .filter(statement -> statement.contains("UPDATE ticket SET available_stock")).count());
-        verify(jdbcTemplate).queryForList("SELECT id FROM `order` WHERE user_id = ? AND user_remark LIKE ? FOR UPDATE", 7L,
-                "pw-course-a1b2c3d4-%");
+        new CourseTestCleanupService(jdbcTemplate, inventory).cleanup(new CourseCleanupRequest(
+                "a1b2c3d4", List.of(7L, 2L), List.of(8L, 3L), List.of(), List.of()));
+        var sequence = org.mockito.Mockito.inOrder(jdbcTemplate);
+        sequence.verify(jdbcTemplate).queryForObject(eq("SELECT username FROM user WHERE id = ? FOR UPDATE"), any(org.springframework.jdbc.core.RowMapper.class), eq(2L));
+        sequence.verify(jdbcTemplate).queryForObject(eq("SELECT username FROM user WHERE id = ? FOR UPDATE"), any(org.springframework.jdbc.core.RowMapper.class), eq(7L));
+        sequence.verify(jdbcTemplate).queryForObject(eq("SELECT user_remark FROM `order` WHERE id = ? FOR UPDATE"), any(org.springframework.jdbc.core.RowMapper.class), eq(3L));
+        sequence.verify(jdbcTemplate).queryForObject(eq("SELECT user_remark FROM `order` WHERE id = ? FOR UPDATE"), any(org.springframework.jdbc.core.RowMapper.class), eq(8L));
     }
 
     private static void assertUpdatePresent(List<String> statements, List<Object[]> values,

@@ -7,7 +7,7 @@ import com.ticket.app.repository.order.OrderRepository;
 import com.ticket.app.repository.user.UserRepository;
 import com.ticket.app.service.coupon.CouponService;
 import org.junit.jupiter.api.Test;
-import org.springframework.jdbc.core.JdbcTemplate;
+import com.ticket.app.service.order.InventoryCompensationService;
 
 import java.util.List;
 import java.util.Map;
@@ -25,17 +25,14 @@ class AdminOrderCancellationInventoryTest {
         OrderRepository orders = mock(OrderRepository.class);
         UserRepository users = mock(UserRepository.class);
         CouponService coupons = mock(CouponService.class);
-        JdbcTemplate jdbc = mock(JdbcTemplate.class);
+        InventoryCompensationService inventory = mock(InventoryCompensationService.class);
         Order order = new Order();
         order.setId(8L); order.setTicketId(11L); order.setSessionId(21L); order.setOrderStatus(Order.STATUS_PENDING_PAY);
         when(orders.selectById(8L)).thenReturn(order);
-        when(jdbc.queryForList(anyString(), any(Object[].class))).thenReturn(List.of(Map.of("price_level_id", 41L, "quantity", 2)));
 
-        new AdminOrderServiceImpl(adminOrders, orders, users, coupons, jdbc)
+        new AdminOrderServiceImpl(adminOrders, orders, users, coupons, inventory)
                 .cancelOrder(8L, new AdminCancelOrderRequest());
 
-        verify(jdbc).update("UPDATE ticket_price_level SET available_stock = available_stock + ? WHERE id = ?", 2, 41L);
-        verify(jdbc).update("UPDATE ticket SET available_stock = available_stock + ? WHERE id = ?", 2, 11L);
-        verify(jdbc).update("UPDATE ticket_session SET available_capacity = available_capacity + ? WHERE id = ?", 2, 21L);
+        verify(inventory).restoreOnce(8L);
     }
 }
