@@ -43,3 +43,20 @@
 | 订单列表、详情、取消、模拟支付、退款 | `tests/ui/customer/test_customer_orders.py` | runId 自有订单，UI 变更后 API 回读，再刷新验证。退款验收为 PROCESSING/退款中，不声称自动退款完成。 |
 
 客户交易 UI 用例仍保留 `write + destructive_commerce` 双重门禁，等待 MySQL 补偿清理验证。以上不替代 Task 7 跨层端到端集成验收，`test_integration.py` 仍为 pending。
+
+## 管理员 UI 新增覆盖（Task 6）
+
+下列实现均待真实浏览器与公网验证；离线契约通过和可收集不代表业务验收完成。
+
+| 旅程 | 状态 | 用例与限制 |
+| --- | --- | --- |
+| 登录、必填、拒绝客户权限、路由保护 | `implemented-pending-live` | `tests/ui/admin/test_admin_login.py`；真实管理员凭据仅来自环境变量，错误密码使用自建客户；必填/匿名路由为跨浏览器冒烟。 |
+| Token 免登录、数据概览 | `implemented-pending-live` | `tests/ui/admin/test_admin_dashboard.py`；API 登录后按 `auth-storage` 的 Zustand v0 结构创建内存 storage_state；用浏览器本次概览响应核对数值，避免二次请求计数竞态。 |
+| 创建、搜索、详情、禁用用户 | `implemented-pending-live` | `tests/ui/admin/test_admin_users.py`；UI 创建立即登记清理，API 回读身份/状态并验证禁用后客户无法登录。 |
+| 用户编辑保存 | `blocked-frontend-todo` | UI-TODO-001：`UserEditPage` 仅 toast 与跳转，没有更新 API。严格 xfail 仅接受专用持久化回读异常，其他 UI/网络失败不能被掩盖。 |
+| 角色分配、通用订单状态更新 | `unavailable-ui/backend-todo` | 当前 UI 无角色分配和任意订单状态控件，未虚构操作。ADMIN-TODO-001/002 继续由 Task 4 API strict xfail 检查真实业务效果。 |
+| 票务列表、筛选、详情、下架 | `implemented-pending-live` | `tests/ui/admin/test_admin_tickets.py`；API 自建 runId 票务后 UI 操作；API 回读并重新载入列表按新状态筛选。 |
+| 订单列表、筛选、详情、取消、退款 | `implemented-pending-live` | `tests/ui/admin/test_admin_orders.py`；自有客户/票务/订单，双门禁；UI 操作后管理员和客户 API 均回读，退款仅验证订单/支付状态，不宣称账务退款完成。 |
+| 优惠券创建、编辑、结束、定向发券 | `implemented-pending-live` | `tests/ui/admin/test_admin_coupons.py`；仅自有模板/用户，即时登记，API 回读券值/状态/客户归属/库存；发券保留 `write + destructive_commerce`。 |
+
+本阶段前端只为概览卡片与待处理计数新增精确 `data-testid`，其余定位使用已有 testid、关联 label、role、placeholder 和精确文本。上下文均在 finally 关闭，认证状态仅存内存。

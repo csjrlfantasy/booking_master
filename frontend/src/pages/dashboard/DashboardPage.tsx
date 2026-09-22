@@ -23,7 +23,7 @@ interface StatCardProps {
 
 function StatCard({ title, value, change, icon, iconBg }: StatCardProps) {
   return (
-    <div className="card p-6">
+    <div className="card p-6" data-testid={`admin-stat-${title}`}>
       <div className="flex items-start justify-between">
         <div>
           <p className="text-sm text-gray-600 mb-1">{title}</p>
@@ -129,7 +129,7 @@ export function DashboardPage() {
                   <p className="text-sm text-gray-600">需要管理员审核</p>
                 </div>
               </div>
-              <span className="text-xl font-bold text-warning-600">
+              <span className="text-xl font-bold text-warning-600" data-testid="admin-stat-pendingRefundCount">
                 {data?.pendingRefundCount || 0}
               </span>
             </div>
@@ -142,7 +142,7 @@ export function DashboardPage() {
                   <p className="text-sm text-gray-600">即将过期</p>
                 </div>
               </div>
-              <span className="text-xl font-bold text-primary-600">
+              <span className="text-xl font-bold text-primary-600" data-testid="admin-stat-pendingOrderCount">
                 {data?.pendingOrderCount || 0}
               </span>
             </div>
