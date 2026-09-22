@@ -30,3 +30,16 @@
 | 概览、订单和用户统计 | `implemented-pending-live` | `tests/api/admin/test_admin_stats_api.py` | 检查单次响应内统计关系，避免共享环境并发造成跨请求计数假失败。 |
 
 管理员用户、订单列表控制器目前未将 `startDate/endDate` 传给服务；此阶段没有声称日期筛选已覆盖。优惠券详情返回请求 DTO 而非带 ID 实体；订单状态更新使用查询参数，退款 `proofImages` 是 JSON 字符串，框架保留这些真实后端契约。
+
+## 客户 UI 新增覆盖（Task 5）
+
+以下均为 `implemented-pending-live`：代码与离线契约完成，尚未执行真实浏览器或公网写入。
+
+| 旅程 | 用例 | 覆盖与限制 |
+| --- | --- | --- |
+| 登录、注册与返回目标页面 | `tests/ui/customer/test_customer_login.py` | 临时账号、错误密码、必填禁用、注册并即时登记用户清理、returnTo。仅无写入的必填验证标记跨浏览器。 |
+| 目录搜索、分类与详情 | `tests/ui/customer/test_shop_catalog.py` | 从当前 API 选择票务；搜索/空结果、分类、访客与 token 注入后的账号状态；搜索冒烟含桌面与 390px 手机视口。 |
+| UI business-changed/direct checkout | `tests/ui/customer/test_customer_checkout.py` | 当前 Web 无购物车 UI，详情页直接下单；购物车仅由 API 用例覆盖。动态库存、API 观演人、UI 选择与提交、即时订单登记、API 持久化回读。优惠券专门旅程保留给 Task 7。 |
+| 订单列表、详情、取消、模拟支付、退款 | `tests/ui/customer/test_customer_orders.py` | runId 自有订单，UI 变更后 API 回读，再刷新验证。退款验收为 PROCESSING/退款中，不声称自动退款完成。 |
+
+客户交易 UI 用例仍保留 `write + destructive_commerce` 双重门禁，等待 MySQL 补偿清理验证。以上不替代 Task 7 跨层端到端集成验收，`test_integration.py` 仍为 pending。
