@@ -9,15 +9,18 @@ from typing import Iterator, Mapping
 
 import pytest
 
+pytest.register_assert_rewrite("framework.reporting.artifacts")
+
 from framework.api.booking import BookingApi
 from framework.api.client import ApiBusinessError, ApiClient, ApiHttpError
 from framework.auth.customer_session import customer_init_script
 from framework.cleanup.registry import CleanupRegistry
 from framework.config.models import Settings
 from framework.data.factory import TestDataFactory
+from framework.reporting.artifacts import BrowserArtifacts, attach_json
 
 
-pytest_plugins = ("framework.config.pytest_plugin",)
+pytest_plugins = ("framework.config.pytest_plugin", "framework.reporting.artifacts")
 
 _USER_NOT_FOUND_CODE = 100100
 
@@ -76,8 +79,15 @@ def test_data_factory(run_id: str) -> TestDataFactory:
 
 @pytest.fixture
 def cleanup_reporter():
-    """Optional suite reporting hook; receives cleanup results, never credentials."""
-    return lambda result: None
+    """A rejected or malformed cleanup result is a teardown failure."""
+    def report(result):
+        assert isinstance(result, dict), "invalid cleanup response"
+        for category in ("deleted", "notFound", "rejected"):
+            counts = result.get(category)
+            assert isinstance(counts, dict), "invalid cleanup response counts"
+            assert all(type(v) is int and v >= 0 for v in counts.values()), "invalid cleanup response counts"
+        assert sum(result["rejected"].values()) == 0, "cleanup rejected run-owned resources"
+    return report
 
 
 @pytest.fixture
@@ -88,7 +98,45 @@ def cleanup_registry(
     try:
         yield registry
     finally:
-        cleanup_reporter(registry.cleanup())
+        resources = {name: list(getattr(registry, f"_{name}_ids"))
+                     for name in ("user", "order", "ticket", "coupon")}
+        attach_json("cleanup pending: registered resource IDs", {"runId": run_id, "resources": resources})
+        try:
+            result = registry.cleanup()
+            attach_json("cleanup observed: response", {"runId": run_id, "result": result})
+            cleanup_reporter(result)
+        except Exception:
+            attach_json("cleanup observed: ERROR (see teardown report)", {"runId": run_id, "resources": resources})
+            raise
+
+
+@pytest.fixture(autouse=True)
+def capture_test_evidence(request, monkeypatch):
+    """Observe live suites only; all fixtures created by these suites stay lazy."""
+    if not any(request.node.get_closest_marker(mark) for mark in ("api", "ui", "e2e")):
+        return
+    client = request.getfixturevalue("api_client")
+    original_request = client.request
+
+    def observed_request(method, path, **kwargs):
+        # Payload text/headers never enter an attachment without recursive redaction.
+        attach_json("API request summary", {"params": kwargs.get("params"), "body": kwargs.get("json")})
+        try:
+            result = original_request(method, path, **kwargs)
+        except Exception as error:
+            attach_json("API observed error", {"statusCode": getattr(error, "status_code", None),
+                                              "businessCode": getattr(error, "code", None)})
+            raise
+        attach_json("API observed response summary", result)
+        return result
+
+    monkeypatch.setattr(client, "request", observed_request)
+    if "browser" in request.fixturenames:
+        browser = request.getfixturevalue("browser")
+        name = request.getfixturevalue("browser_name")
+        capture = BrowserArtifacts(request.config._booking_artifact_root, request.node.nodeid, name)
+        request.node._booking_capture = capture
+        capture.install(browser, monkeypatch)
 
 
 @pytest.fixture

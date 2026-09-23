@@ -84,9 +84,28 @@ python -m pytest tests/e2e/test_temporary_customer_lifecycle.py --env=public --a
 | `chromium` | Chromium 浏览器测试 |
 | `cross_browser` | 跨浏览器测试 |
 
-## 报告与后续失败产物
+## 套件命令与报告
 
-Pytest 已配置 HTML 与 Allure 报告输出目录，并通过标记支持选择测试范围。截图、trace、视频及更细粒度的失败诊断产物将在后续 suite 任务中补齐；本手册不将它们描述为当前已完整实现的能力。
+在本目录通过 PowerShell 运行，每次生成独立的报告目录：
+
+```powershell
+./scripts/run-suite.ps1 -Suite framework
+./scripts/run-suite.ps1 -Suite api-read -Environment public
+./scripts/run-suite.ps1 -Suite api-write -Environment local -AllowWrite
+./scripts/run-suite.ps1 -Suite customer-ui -AllowWrite
+./scripts/run-suite.ps1 -Suite admin-ui -AllowWrite
+./scripts/run-suite.ps1 -Suite smoke
+./scripts/run-suite.ps1 -Suite e2e -AllowWrite -AllowDestructiveCommerce
+./scripts/run-suite.ps1 -Suite full -AllowWrite -AllowDestructiveCommerce
+```
+
+`api-read` 包含管理员查询，需要 `BOOKING_ADMIN_USERNAME` / `BOOKING_ADMIN_PASSWORD`；`api-write`、`admin-ui`、`e2e`、`full` 同样需要管理员凭据。写套件还需要 `COURSE_TEST_KEY`。脚本先检查开关和变量是否齐备，再由框架预检清理权限。凭据由进程/Jenkins 注入，不在命令或文件中填写。
+
+`api-write`、`customer-ui`、`admin-ui` 默认排除会消耗库存/优惠券的 commerce 用例；订单、支付、优惠券发放等完整业务通过 `full` 和串行 `e2e` 执行，必须提供第二个显式开关。客户/管理员 UI 默认 Chromium；`smoke` 运行客户只读跨浏览器冒烟，需安装 Chromium、Firefox、WebKit。当前命令统一串行，防止完整回归中的共享业务并发相互干扰。
+
+加 `-DryRun` 只打印参数数组，不运行测试、不创建输出目录；加 `-CollectOnly` 只收集用例。查看 `-Help` 获取选项。套件脚本保留 pytest 退出码，JUnit、HTML、Allure 原始结果与 `summary.json` 保存在本次目录。Allure CLI 生成 HTML 是单独步骤。
+
+失败用例保留截图、视频及裁剪后的 JSON 动作时间线；完整 trace 默认不归档。清理失败作为独立 teardown error 保留。详情、脱敏边界与 Jenkins 保留建议见 [报告与证据口径](docs/reporting-and-evidence.md)。当前离线验证不代表浏览器、公网回归或 Jenkins 已实跑通过。
 
 ## 本阶段基线
 
