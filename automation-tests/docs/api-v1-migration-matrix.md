@@ -1,16 +1,16 @@
 # API v1 迁移矩阵
 
-本矩阵记录已冻结的 pytest requests API v1 用例向当前 Playwright 测试框架的迁移状态。有效状态**仅**为：`migrated`、`invalid-endpoint`、`business-changed`、`pending`。阶段完成前，后续任务必须移除每一条 `pending` 状态。
+本矩阵记录已冻结的 pytest requests API v1 用例向当前 Playwright 测试框架的迁移状态。`implemented-pending-live` 表示代码迁移与离线验证完成、真实环境验收未完成；只有取得真实环境执行及清理证据后才能改为 `migrated`。其他状态为 `invalid-endpoint`、`business-changed`、`pending`（尚未实现）。当前没有尚未实现的旧模块，但不能据此声称公网验收完成。Task 9 实测及发布条件见 [阶段验证记录](phase-verification.md)。
 
 | 旧文件 | 领域 | 状态 | 目标路径 | 原因/证据 |
 | --- | --- | --- | --- | --- |
-| `test_user.py` | 客户认证与身份 | `migrated` | `tests/api/customer/test_auth_api.py`、`tests/api/customer/test_identity_api.py` | 认证、个人资料、身份及跨用户归属覆盖已替代旧文件。 |
-| `test_ticket.py` | 票务目录 | `migrated` | `tests/api/customer/test_catalog_api.py` | 已迁移至当前 TicketController 目录、详情（含场次/票档）、分类、热门和即将开售契约；不支持的旧版独立场次/票档路由已移除。 |
-| `test_cart.py` | 购物车 | `migrated` | `tests/api/customer/test_cart_api.py` | 已迁移至当前 CartController 新增、数量更新、删除、批量删除、清空及未授权契约；不支持的旧版路由已移除。 |
-| `test_coupon.py` | 优惠券 | `migrated` | `tests/api/customer/test_coupon_api.py` | 已迁移至当前 CouponController 的领券中心、我的优惠券、领取、重复领取、校验、不可用及未授权契约；补偿式 cleanup 完成前禁止 live/Jenkins，二次开关仅可用于紧急隔离环境。 |
-| `test_order.py` | 订单 | `migrated` | `tests/api/customer/test_order_api.py` | 已迁移至当前 OrderController 的动态库存创建、列表、详情、无效票档、取消、重复取消、归属及状态迁移契约；补偿式 cleanup 完成前禁止 live/Jenkins，二次开关仅可用于紧急隔离环境。 |
-| `test_payment.py` | 支付与退款 | `migrated` | `tests/api/customer/test_payment_api.py` | 已迁移至当前 PaymentController 的创建、模拟支付、状态、重复支付、退款申请、退款查询及归属契约；补偿式 cleanup 完成前禁止 live/Jenkins，二次开关仅可用于紧急隔离环境。 |
-| `test_integration.py` | 跨层购买流程 | `migrated` | `tests/e2e/test_purchase_lifecycle.py`、`tests/e2e/test_coupon_purchase.py`、`tests/e2e/test_admin_customer_visibility.py` | 已实现 API 准备、UI 下单/支付/退款申请、优惠券结算、管理员禁用客户后的登录拒绝；离线组合契约与收集通过，真实浏览器/公网验收待 Task 9。 |
+| `test_user.py` | 客户认证与身份 | `implemented-pending-live` | `tests/api/customer/test_auth_api.py`、`tests/api/customer/test_identity_api.py` | 认证、个人资料、身份及跨用户归属覆盖已替代旧文件；框架离线通过，公网未执行。 |
+| `test_ticket.py` | 票务目录 | `implemented-pending-live` | `tests/api/customer/test_catalog_api.py` | 当前 TicketController 目录、详情（含场次/票档）、分类、热门和即将开售契约；旧版独立场次/票档路由已移除；公网套件未执行。 |
+| `test_cart.py` | 购物车 | `implemented-pending-live` | `tests/api/customer/test_cart_api.py` | 当前 CartController 新增、数量更新、删除、批量删除、清空及未授权契约；旧版路由已移除；公网套件未执行。 |
+| `test_coupon.py` | 优惠券 | `implemented-pending-live` | `tests/api/customer/test_coupon_api.py` | 当前 CouponController 领券中心、我的优惠券、领取、重复领取、校验、不可用及未授权契约；补偿 cleanup 代码已完成，部署、历史数据审计和 MySQL 清理验收仍阻断 live/Jenkins。 |
+| `test_order.py` | 订单 | `implemented-pending-live` | `tests/api/customer/test_order_api.py` | 当前 OrderController 动态库存创建、列表、详情、无效票档、取消、重复取消、归属及状态迁移契约；补偿 cleanup 代码已完成，部署、历史数据审计和 MySQL 清理验收仍阻断 live/Jenkins。 |
+| `test_payment.py` | 支付与退款 | `implemented-pending-live` | `tests/api/customer/test_payment_api.py` | 当前 PaymentController 创建、模拟支付、状态、重复支付、退款申请、退款查询及归属契约；补偿 cleanup 代码已完成，部署、历史数据审计和 MySQL 清理验收仍阻断 live/Jenkins。 |
+| `test_integration.py` | 跨层购买流程 | `implemented-pending-live` | `tests/e2e/test_purchase_lifecycle.py`、`tests/e2e/test_coupon_purchase.py`、`tests/e2e/test_admin_customer_visibility.py` | 已实现 API 准备、UI 下单/支付/退款申请、优惠券结算、管理员禁用客户后的登录拒绝；离线组合契约与收集通过，Task 9 尚未取得真实浏览器/公网验收证据。 |
 | `test_performance.py` | 性能/负载 | `business-changed` | 不迁移为 pytest 功能用例 | 性能验证不作为功能 pytest 负载测试迁移；其负载场景需由独立性能工具和环境容量计划处理。 |
 
 ## 管理员新增覆盖（不属于旧版文件迁移状态）

@@ -70,7 +70,7 @@ python -m pytest tests/e2e/test_temporary_customer_lifecycle.py --env=public --a
 
 ## 标记
 
-当前 `pytest.ini` 定义九个标记：
+当前 `pytest.ini` 定义九个业务标记，框架及 xdist 插件还动态注册以下表内的交易门禁和分组标记：
 
 | 标记 | 用途 |
 | --- | --- |
@@ -83,6 +83,10 @@ python -m pytest tests/e2e/test_temporary_customer_lifecycle.py --env=public --a
 | `public` | 面向公共环境的测试 |
 | `chromium` | Chromium 浏览器测试 |
 | `cross_browser` | 跨浏览器测试 |
+| `destructive_commerce` | 库存、支付或优惠券交易，另需 `--allow-destructive-commerce`；只有补偿清理部署及验收通过后才可在线执行 |
+| `xdist_group` | xdist 同组执行约束；E2E 默认使用 `-n 0` 串行 |
+
+旧 API 测试保存在 `legacy/api-tests-v1`，默认 `tests` 收集范围不包含它。显式把该归档目录作为 pytest 参数会绕过默认收集范围，仍能收集旧用例；不要直接执行归档套件。
 
 ## 套件命令与报告
 
@@ -108,5 +112,7 @@ python -m pytest tests/e2e/test_temporary_customer_lifecycle.py --env=public --a
 失败用例保留截图、视频及裁剪后的 JSON 动作时间线；完整 trace 默认不归档。清理失败作为独立 teardown error 保留。详情、脱敏边界与 Jenkins 保留建议见 [报告与证据口径](docs/reporting-and-evidence.md)。当前离线验证不代表浏览器、公网回归或 Jenkins 已实跑通过。
 
 ## 本阶段基线
+
+2026-09-23 的 Task 9 验证为 396 项离线框架测试通过、local/public 各 504 项可收集，公网业务套件未执行。已实际生成 Allure HTML，并验证本机 Chromium 离线启动；Firefox/WebKit 尚未安装。当前发布仍受凭据、清理部署、历史库存事实审计及源码敏感默认整改阻断。完整命令、证据与下一步门禁见 [阶段验证记录](docs/phase-verification.md)。
 
 完整 Java reactor 当前存在五个与本改造无关、预先存在的 order 模块失败。本阶段以聚焦的 test-support/security 测试以及上述 Python 框架测试为质量门禁，而不是以完整 reactor 全绿作为前提。
