@@ -45,3 +45,7 @@ class CheckoutPanel:
         assert isinstance(order, dict) and order.get("orderId"), "missing created order ID"
         expect(self.panel.get_by_text(f"订单号：{order['orderNo']}", exact=True)).to_be_visible()
         return order
+
+    def expect_coupon_discount(self, amount):
+        """Wait for the asynchronously calculated, user-visible coupon amount."""
+        expect(self.panel.get_by_text(f"-¥{amount:.2f}", exact=True)).to_be_visible()

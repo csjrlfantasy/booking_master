@@ -75,14 +75,20 @@ def test_data_factory(run_id: str) -> TestDataFactory:
 
 
 @pytest.fixture
+def cleanup_reporter():
+    """Optional suite reporting hook; receives cleanup results, never credentials."""
+    return lambda result: None
+
+
+@pytest.fixture
 def cleanup_registry(
-    run_id: str, booking_api: BookingApi
+    run_id: str, booking_api: BookingApi, cleanup_reporter
 ) -> Iterator[CleanupRegistry]:
     registry = CleanupRegistry(run_id, booking_api, _course_test_key())
     try:
         yield registry
     finally:
-        registry.cleanup()
+        cleanup_reporter(registry.cleanup())
 
 
 @pytest.fixture

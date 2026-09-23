@@ -10,7 +10,7 @@
 | `test_coupon.py` | 优惠券 | `migrated` | `tests/api/customer/test_coupon_api.py` | 已迁移至当前 CouponController 的领券中心、我的优惠券、领取、重复领取、校验、不可用及未授权契约；补偿式 cleanup 完成前禁止 live/Jenkins，二次开关仅可用于紧急隔离环境。 |
 | `test_order.py` | 订单 | `migrated` | `tests/api/customer/test_order_api.py` | 已迁移至当前 OrderController 的动态库存创建、列表、详情、无效票档、取消、重复取消、归属及状态迁移契约；补偿式 cleanup 完成前禁止 live/Jenkins，二次开关仅可用于紧急隔离环境。 |
 | `test_payment.py` | 支付与退款 | `migrated` | `tests/api/customer/test_payment_api.py` | 已迁移至当前 PaymentController 的创建、模拟支付、状态、重复支付、退款申请、退款查询及归属契约；补偿式 cleanup 完成前禁止 live/Jenkins，二次开关仅可用于紧急隔离环境。 |
-| `test_integration.py` | 跨层购买流程 | `pending` | `tests/e2e/test_purchase_lifecycle.py`、`tests/e2e/test_coupon_purchase.py`、`tests/e2e/test_admin_customer_visibility.py` | Task 7 将以 API 准备和 UI 验证重建跨层业务流程。 |
+| `test_integration.py` | 跨层购买流程 | `migrated` | `tests/e2e/test_purchase_lifecycle.py`、`tests/e2e/test_coupon_purchase.py`、`tests/e2e/test_admin_customer_visibility.py` | 已实现 API 准备、UI 下单/支付/退款申请、优惠券结算、管理员禁用客户后的登录拒绝；离线组合契约与收集通过，真实浏览器/公网验收待 Task 9。 |
 | `test_performance.py` | 性能/负载 | `business-changed` | 不迁移为 pytest 功能用例 | 性能验证不作为功能 pytest 负载测试迁移；其负载场景需由独立性能工具和环境容量计划处理。 |
 
 ## 管理员新增覆盖（不属于旧版文件迁移状态）
@@ -42,7 +42,7 @@
 | UI business-changed/direct checkout | `tests/ui/customer/test_customer_checkout.py` | 当前 Web 无购物车 UI，详情页直接下单；购物车仅由 API 用例覆盖。动态库存、API 观演人、UI 选择与提交、即时订单登记、API 持久化回读。优惠券专门旅程保留给 Task 7。 |
 | 订单列表、详情、取消、模拟支付、退款 | `tests/ui/customer/test_customer_orders.py` | runId 自有订单，UI 变更后 API 回读，再刷新验证。退款验收为 PROCESSING/退款中，不声称自动退款完成。 |
 
-客户交易 UI 用例仍保留 `write + destructive_commerce` 双重门禁，等待 MySQL 补偿清理验证。以上不替代 Task 7 跨层端到端集成验收，`test_integration.py` 仍为 pending。
+客户交易 UI 用例仍保留 `write + destructive_commerce` 双重门禁，等待 MySQL 补偿清理验证。Task 7 已补充跨层端到端用例，真实环境验收仍待 Task 9。
 
 ## 管理员 UI 新增覆盖（Task 6）
 
@@ -60,3 +60,15 @@
 | 优惠券创建、编辑、结束、定向发券 | `implemented-pending-live` | `tests/ui/admin/test_admin_coupons.py`；仅自有模板/用户，即时登记，API 回读券值/状态/客户归属/库存；发券保留 `write + destructive_commerce`。 |
 
 本阶段前端只为概览卡片与待处理计数新增精确 `data-testid`，其余定位使用已有 testid、关联 label、role、placeholder 和精确文本。上下文均在 finally 关闭，认证状态仅存内存。
+
+## 跨层 E2E 新增覆盖（Task 7）
+
+以下三条旅程均为 `implemented-pending-live`；离线契约验证组合、断言、清理和报告行为，不代表实际浏览器验收。
+
+| 旅程 | 覆盖与限制 |
+| --- | --- |
+| 临时客户购买、支付、退款申请 | 复用 API 注册与 token 注入，动态选择可售票务/场次/票档，通过 POM 完成 UI 下单与模拟支付、退款申请；各阶段 API 回读，最终订单为 6/退款中，退款查询为 PROCESSING，不宣称已完成退款结算。 |
+| 自有优惠券购买 | 管理员创建 runId 券模板并定向发给临时客户，UI 选择优惠券并等待优惠金额，提交订单后验证模板 ID、用户券 ID、原价、优惠及应付金额。 |
+| 管理员禁用客户 | API 注册临时客户，管理员 UI 搜索/详情/禁用，管理员 API 回读 status=0，客户 API 登录必须拒绝并返回 USER_DISABLED(100102)；当前禁用接口真实持久化，故无需 xfail。 |
+
+三条旅程全部要求 `e2e + chromium + write + destructive_commerce`，写入执行需要两个显式开关和清理密钥；并行执行仅允许 `--dist=loadgroup` 且三条旅程共享一个 xdist_group，或使用 `-n 0` 串行。收集不需要凭据或浏览器。创建后立即登记清理，沿用用户删除及批量兜底；Allure 只附加白名单 ID/订单号/数值状态与清理数量，清理拒绝和畸形计数会导致 teardown 失败。等待复用 POM 的有界响应及可见性断言；当前支付/退款/禁用接口同步持久化，因此无需轮询。
