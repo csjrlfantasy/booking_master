@@ -15,7 +15,8 @@ from framework.api.client import ApiBusinessError
 
 def test_customer_session_matches_frontend_storage_contract():
     script, values = customer_init_script(
-        token="secret-token", user_id=7, name="course-user", expires_in=3600
+        token="secret-token", user_id=7, name="course-user", expires_in=3600,
+        web_url="http://web.example",
     )
 
     assert "booking_customer_token" in script
@@ -36,7 +37,8 @@ def test_customer_session_matches_frontend_storage_contract():
 def test_customer_session_rejects_invalid_values(token, user_id, name, expires_in):
     with pytest.raises(ValueError):
         customer_init_script(
-            token=token, user_id=user_id, name=name, expires_in=expires_in
+            token=token, user_id=user_id, name=name, expires_in=expires_in,
+            web_url="http://web.example",
         )
 
 
@@ -45,10 +47,10 @@ def test_customer_session_serializes_hostile_values_as_data():
     name = 'customer " name </script><script>bad()</script>'
 
     script, values = customer_init_script(
-        token=token, user_id=7, name=name, expires_in=3600
+        token=token, user_id=7, name=name, expires_in=3600, web_url="http://web.example"
     )
 
-    payload = json.loads(script.removeprefix("const values = ").split(";", 1)[0])
+    payload = json.loads(script.split("const values = ", 1)[1].split(";", 1)[0])
     assert payload == values
     assert "bad()" in payload["token"]
     assert "</script>" not in script
@@ -88,6 +90,42 @@ def test_authenticated_context_closes_when_init_script_installation_fails():
         next(fixture)
 
     assert browser.context.closed is True
+
+
+def test_customer_token_is_only_installed_on_configured_origin(browser):
+    """Catch context-wide token leakage after redirects and in cross-origin frames."""
+    customer = TemporaryCustomer("a1b2c3d4", 7, "course-user", "offline-token", 3600)
+    fixture = authenticated_customer_context.__wrapped__(
+        browser, SimpleNamespace(web_url="http://shop.example:8443/shop/login"), customer
+    )
+    context = next(fixture)
+    try:
+        context.route("**/*", lambda route: route.fulfill(
+            status=200, content_type="text/html", body="<html><body>offline</body></html>"
+        ))
+        page = context.new_page()
+        page.goto("http://shop.example:8443/shop")
+        read_token = "() => localStorage.getItem('booking_customer_token')"
+        assert page.evaluate(read_token) == "offline-token"
+        for url in (
+            "http://shop.example:8443/child",
+            "https://unrelated.example/child",
+            "http://shop.example/child",
+            "https://shop.example:8443/child",
+        ):
+            page.evaluate("""url => new Promise(resolve => {
+                const frame = document.createElement('iframe');
+                frame.onload = resolve; frame.src = url; document.body.append(frame);
+            })""", url)
+            frame = page.frame(url=url)
+            assert frame is not None
+            assert frame.evaluate(read_token) == (
+                "offline-token" if url == "http://shop.example:8443/child" else None
+            )
+        page.goto("https://unrelated.example/redirect-target")
+        assert page.evaluate(read_token) is None
+    finally:
+        fixture.close()
 
 
 def test_temporary_customer_record_does_not_expose_factory_password():

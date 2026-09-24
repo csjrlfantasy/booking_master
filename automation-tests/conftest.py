@@ -176,6 +176,7 @@ def authenticated_customer_context(browser, settings: Settings, temporary_custom
             user_id=temporary_customer.user_id,
             name=temporary_customer.username,
             expires_in=temporary_customer.expires_in,
+            web_url=settings.web_url,
         )
         context.add_init_script(script=script)
         yield context

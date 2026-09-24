@@ -279,4 +279,5 @@ def test_e2e_fixture_package_does_not_shadow_root_conftest_during_collection():
         cwd=ROOT, capture_output=True, text=True, timeout=30,
     )
     assert result.returncode == 0, result.stdout + result.stderr
-    assert "13 tests collected" in result.stdout
+    assert "tests/e2e/test_admin_customer_visibility.py::" in result.stdout
+    assert "tests/framework/test_customer_session.py::test_customer_session_matches_frontend_storage_contract" in result.stdout
