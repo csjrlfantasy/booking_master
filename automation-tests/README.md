@@ -116,3 +116,7 @@ python -m pytest tests/e2e/test_temporary_customer_lifecycle.py --env=public --a
 2026-09-23 的 Task 9 验证为 396 项离线框架测试通过、local/public 各 504 项可收集，公网业务套件未执行。已实际生成 Allure HTML，并验证本机 Chromium 离线启动；Firefox/WebKit 尚未安装。当前发布仍受凭据、清理部署、历史库存事实审计及源码敏感默认整改阻断。完整命令、证据与下一步门禁见 [阶段验证记录](docs/phase-verification.md)。
 
 完整 Java reactor 当前存在五个与本改造无关、预先存在的 order 模块失败。本阶段以聚焦的 test-support/security 测试以及上述 Python 框架测试为质量门禁，而不是以完整 reactor 全绿作为前提。
+
+## Jenkins 入口
+
+仓库根 `Jenkinsfile` 默认执行离线框架与业务收集。Job 配置、凭据 ID、显式公网开关、数据库审计证明与部署适配器约定见 [Jenkins 运行手册](../ci/jenkins/README.md)。仓库根执行 `./ci/jenkins/verify-prerequisites.ps1 -Mode offline` 可验证默认模式；部署预演使用 `-Mode deploy -WhatIf`，依然要求真实的前置配置。版本化流水线资产不代表 Jenkins Job 或公网部署已完成。

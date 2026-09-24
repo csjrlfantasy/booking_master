@@ -100,3 +100,7 @@
 已知 TODO：ADMIN-TODO-001 角色赋权、ADMIN-TODO-002 任意订单状态更新、UI-TODO-001 用户编辑保存仍为严格预期失败设计；只有在线观察后才统计 xfail，修复后的 XPASS 必须促使用例转为正常回归。此前完整 Java reactor 的五个历史 order 失败未在本任务复跑，本次不将其视为已解决。
 
 本阶段下一步是完成部署与凭据准备、历史库存事实审计、敏感发布整改，再取得真实业务与清理证据；当前离线通过不足以批准公网交易及发布。
+
+## 版本化 CI 门禁补充
+
+后续新增的根 `Jenkinsfile` 使用现有套件入口，默认构建、离线执行和业务收集。开启部署或公网执行须满足受控凭据、明确写入/交易开关、test-support 就绪声明和 24 小时内历史库存事实审计证明；公网用例仍执行真实空清理预检。失败/teardown error/XPASS 阻断，公网 skipped/xfail 记为 UNSTABLE，collectionOnly 保留零执行口径。远端 Linux release 入口尚待实现与验收；本地资产测试、参数/WhatIf 模拟均不计为真实 Jenkins 或部署通过。具体依赖与动作协议见 [Jenkins 手册](../../ci/jenkins/README.md)。
