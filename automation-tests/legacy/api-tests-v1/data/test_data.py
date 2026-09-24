@@ -17,7 +17,7 @@ class UserTestData:
     # 测试用户账号
     TEST_USER = {
         "username": "test_user_001",
-        "password": "Test@123456",
+        "password": "<ARCHIVED_PASSWORD_UNSET>",
         "phone": "13800138000"
     }
     
@@ -43,7 +43,7 @@ class UserTestData:
     REGISTER_SUCCESS_DATA = {
         "username": f"user_{random.randint(10000, 99999)}",
         "phone": f"138{random.randint(10000000, 99999999)}",
-        "password": "Test@123456",
+        "password": "<ARCHIVED_PASSWORD_UNSET>",
         "smsCode": "123456"
     }
     
@@ -51,12 +51,12 @@ class UserTestData:
     REGISTER_FAIL_DATA = [
         {
             "name": "用户名太短",
-            "data": {"username": "ab", "phone": "13800138001", "password": "Test@123456", "smsCode": "123456"},
+            "data": {"username": "ab", "phone": "13800138001", "password": "<ARCHIVED_PASSWORD_UNSET>", "smsCode": "123456"},
             "expected_code": 100101
         },
         {
             "name": "用户名包含非法字符",
-            "data": {"username": "user@test", "phone": "13800138002", "password": "Test@123456", "smsCode": "123456"},
+            "data": {"username": "user@test", "phone": "13800138002", "password": "<ARCHIVED_PASSWORD_UNSET>", "smsCode": "123456"},
             "expected_code": 100102
         },
         {
@@ -66,7 +66,7 @@ class UserTestData:
         },
         {
             "name": "手机号格式错误",
-            "data": {"username": "testuser004", "phone": "12345", "password": "Test@123456", "smsCode": "123456"},
+            "data": {"username": "testuser004", "phone": "12345", "password": "<ARCHIVED_PASSWORD_UNSET>", "smsCode": "123456"},
             "expected_code": 100104
         },
         {
@@ -82,7 +82,7 @@ class UserTestData:
             "name": "密码登录",
             "loginType": "password",
             "account": "13800138000",
-            "password": "Test@123456"
+            "password": "<ARCHIVED_PASSWORD_UNSET>"
         },
         {
             "name": "短信登录",
@@ -98,7 +98,7 @@ class UserTestData:
             "name": "账号不存在",
             "loginType": "password",
             "account": "13900000000",
-            "password": "Test@123456",
+            "password": "<ARCHIVED_PASSWORD_UNSET>",
             "expected_code": 100105
         },
         {
@@ -119,7 +119,7 @@ class UserTestData:
             "name": "账号被锁定",
             "loginType": "password",
             "account": "13800138001",
-            "password": "Test@123456",
+            "password": "<ARCHIVED_PASSWORD_UNSET>",
             "expected_code": 100108
         }
     ]

@@ -85,7 +85,7 @@ import static org.mockito.Mockito.when;
 class CourseTestSupportControllerTest {
     private final CourseTestCleanupService service = mock(CourseTestCleanupService.class);
     private final CourseTestSupportController controller =
-            new CourseTestSupportController(service, "playwright-course-local");
+            new CourseTestSupportController(service, "<SECRET_FROM_ENV>");
 
     @Test
     void cleanupRejectsWrongCourseKey() {
@@ -103,7 +103,7 @@ class CourseTestSupportControllerTest {
         when(service.cleanup("a1b2c3d4")).thenReturn(response);
 
         Result<CourseCleanupResponse> result =
-                controller.cleanup("playwright-course-local", request);
+                controller.cleanup("<SECRET_FROM_ENV>", request);
 
         assertEquals(response, result.getData());
         verify(service).cleanup("a1b2c3d4");
@@ -317,7 +317,7 @@ Append to `application-dev.yml`:
 course:
   test-support:
     enabled: true
-    key: ${COURSE_TEST_KEY:playwright-course-local}
+    key: ${COURSE_TEST_KEY}
 ```
 
 Add `/api/test-support/**` to `WebMvcConfig.jwtExcludePathPatterns()`. The controller's `@Profile`, conditional property, and course key remain the authorization boundary.
@@ -476,8 +476,8 @@ class CourseConfig:
             web_url=os.getenv("BOOKING_WEB_URL", "http://127.0.0.1:3000").rstrip("/"),
             api_url=os.getenv("BOOKING_API_URL", "http://127.0.0.1:8088/api").rstrip("/"),
             admin_username=os.getenv("BOOKING_ADMIN_USERNAME", "admin"),
-            admin_password=os.getenv("BOOKING_ADMIN_PASSWORD", "Admin@123456"),
-            course_test_key=os.getenv("COURSE_TEST_KEY", "playwright-course-local"),
+            admin_password=os.environ["BOOKING_ADMIN_PASSWORD"],
+            course_test_key=os.environ["COURSE_TEST_KEY"],
             request_timeout=float(os.getenv("BOOKING_REQUEST_TIMEOUT", "10")),
         )
 ```
@@ -906,7 +906,7 @@ import os
 WEB_URL = os.getenv("BOOKING_WEB_URL", "http://127.0.0.1:3000").rstrip("/")
 API_URL = os.getenv("BOOKING_API_URL", "http://127.0.0.1:8088/api").rstrip("/")
 ADMIN_USERNAME = os.getenv("BOOKING_ADMIN_USERNAME", "admin")
-ADMIN_PASSWORD = os.getenv("BOOKING_ADMIN_PASSWORD", "Admin@123456")
+ADMIN_PASSWORD = os.environ["BOOKING_ADMIN_PASSWORD"]
 
 ADMIN_LOGIN_URL = f"{WEB_URL}/login"
 SHOP_URL = f"{WEB_URL}/shop"
@@ -1098,7 +1098,7 @@ Unit 30 becomes admin login → query real tickets → shop search → select ti
 
 - [ ] **Step 3: Align configuration, CI, reporting, and AI examples**
 
-Use `BOOKING_WEB_URL`, `BOOKING_API_URL`, and `COURSE_TEST_KEY`; use `/shop` in codegen examples; label external demos; keep all tokens/passwords in environment variables except documented local teaching defaults.
+Use `BOOKING_WEB_URL`, `BOOKING_API_URL`, and `COURSE_TEST_KEY`; use `/shop` in codegen examples; label external demos; keep all tokens/passwords in environment variables without embedded teaching defaults.
 
 - [ ] **Step 4: Align unit 19-36 README files**
 

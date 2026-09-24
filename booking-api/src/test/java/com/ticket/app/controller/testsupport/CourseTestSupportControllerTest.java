@@ -20,7 +20,7 @@ import static org.mockito.Mockito.when;
 class CourseTestSupportControllerTest {
     private final CourseTestCleanupService service = mock(CourseTestCleanupService.class);
     private final CourseTestSupportController controller =
-            new CourseTestSupportController(service, "playwright-course-local");
+            new CourseTestSupportController(service, "<SECRET_FROM_ENV>");
 
     @Test
     void cleanupRejectsWrongCourseKey() {
@@ -38,7 +38,7 @@ class CourseTestSupportControllerTest {
         when(service.cleanup(request)).thenReturn(response);
 
         Result<CourseCleanupResponse> result =
-                controller.cleanup("playwright-course-local", request);
+                controller.cleanup("<SECRET_FROM_ENV>", request);
 
         assertEquals(response, result.getData());
         verify(service).cleanup(request);
@@ -58,7 +58,7 @@ class CourseTestSupportControllerTest {
         when(service.cleanupUser("a1b2c3d4", 7L)).thenReturn(response);
 
         Result<CourseCleanupResponse> result =
-                controller.deleteUser("playwright-course-local", 7L, "a1b2c3d4");
+                controller.deleteUser("<SECRET_FROM_ENV>", 7L, "a1b2c3d4");
 
         assertEquals(response, result.getData());
         verify(service).cleanupUser("a1b2c3d4", 7L);

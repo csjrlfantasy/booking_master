@@ -35,7 +35,7 @@ class TestUserOrderFlow:
         with allure.step("1. 用户登录"):
             login_data = {
                 "username": "test_user",
-                "password": "Test@123456"
+                "password": "<ARCHIVED_PASSWORD_UNSET>"
             }
             login_response = http_client.post("/api/user/login", json_data=login_data)
             
@@ -129,7 +129,7 @@ class TestUserOrderFlow:
         # 登录
         login_response = http_client.post("/api/user/login", json_data={
             "username": "test_user",
-            "password": "Test@123456"
+            "password": "<ARCHIVED_PASSWORD_UNSET>"
         })
         
         if login_response.get("code") != 0:
@@ -167,7 +167,7 @@ class TestUserOrderFlow:
         http_client.set_token(None)
         login_resp = http_client.post("/api/user/login", json_data={
             "username": "test_user",
-            "password": "Test@123456"
+            "password": "<ARCHIVED_PASSWORD_UNSET>"
         })
         
         if login_resp.get("code") == 0:
@@ -219,7 +219,7 @@ class TestCouponUsageFlow:
         # 登录
         login_resp = http_client.post("/api/user/login", json_data={
             "username": "test_user",
-            "password": "Test@123456"
+            "password": "<ARCHIVED_PASSWORD_UNSET>"
         })
         
         if login_resp.get("code") != 0:
@@ -250,7 +250,7 @@ class TestCouponUsageFlow:
         # 登录
         login_resp = http_client.post("/api/user/login", json_data={
             "username": "test_user",
-            "password": "Test@123456"
+            "password": "<ARCHIVED_PASSWORD_UNSET>"
         })
         
         if login_resp.get("code") != 0:
@@ -287,7 +287,7 @@ class TestCartFlow:
         # 登录
         login_resp = http_client.post("/api/user/login", json_data={
             "username": "test_user",
-            "password": "Test@123456"
+            "password": "<ARCHIVED_PASSWORD_UNSET>"
         })
         
         if login_resp.get("code") != 0:
@@ -344,7 +344,7 @@ class TestUserCenterFlow:
         # 登录
         login_resp = http_client.post("/api/user/login", json_data={
             "username": "test_user",
-            "password": "Test@123456"
+            "password": "<ARCHIVED_PASSWORD_UNSET>"
         })
         
         if login_resp.get("code") != 0:
@@ -414,7 +414,7 @@ class TestExceptionFlow:
         # 登录
         login_resp = http_client.post("/api/user/login", json_data={
             "username": "test_user",
-            "password": "Test@123456"
+            "password": "<ARCHIVED_PASSWORD_UNSET>"
         })
         
         if login_resp.get("code") != 0:
@@ -452,7 +452,7 @@ class TestBatchOperations:
         # 登录
         login_resp = http_client.post("/api/user/login", json_data={
             "username": "test_user",
-            "password": "Test@123456"
+            "password": "<ARCHIVED_PASSWORD_UNSET>"
         })
         
         if login_resp.get("code") != 0:
@@ -486,7 +486,7 @@ class TestBatchOperations:
         # 登录
         login_resp = http_client.post("/api/user/login", json_data={
             "username": "test_user",
-            "password": "Test@123456"
+            "password": "<ARCHIVED_PASSWORD_UNSET>"
         })
         
         if login_resp.get("code") == 0:

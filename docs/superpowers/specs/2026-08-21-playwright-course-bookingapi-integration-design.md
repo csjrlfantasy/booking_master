@@ -49,7 +49,7 @@ BookingApi 是唯一真实业务系统。课程根目录提供一套规范化的
 
 ### 4.2 测试数据清理
 
-新增仅在 Spring `dev` profile 下启用的测试支持接口。接口要求 `X-Course-Test-Key` 请求头，密钥由 `COURSE_TEST_KEY` 环境变量覆盖，并提供仅适合本地教学环境的默认值。
+新增仅在 Spring `dev` profile 下启用的测试支持接口。接口要求 `X-Course-Test-Key` 请求头，密钥必须由 `COURSE_TEST_KEY` 环境变量提供，不提供默认密钥。
 
 清理请求携带本次运行的 `runId` 及测试记录下来的资源标识。后端在删除前再次验证资源的用户名、名称或备注包含 `pw-course-{runId}` 前缀；验证不通过时拒绝删除。清理按依赖顺序处理订单明细、支付/退款、用户优惠券、订单、身份信息、测试用户、测试票品和测试优惠券。
 
@@ -71,8 +71,8 @@ BookingApi 是唯一真实业务系统。课程根目录提供一套规范化的
 | Web 根地址 | `http://127.0.0.1:3000` | `BOOKING_WEB_URL` |
 | API 根地址 | `http://127.0.0.1:8088/api` | `BOOKING_API_URL` |
 | 管理员账号 | `admin` | `BOOKING_ADMIN_USERNAME` |
-| 管理员密码 | `Admin@123456` | `BOOKING_ADMIN_PASSWORD` |
-| 清理密钥 | 本地教学默认值 | `COURSE_TEST_KEY` |
+| 管理员密码 | 无，必须设置 | `BOOKING_ADMIN_PASSWORD` |
+| 清理密钥 | 无，必须设置 | `COURSE_TEST_KEY` |
 
 pytest 会话级预检查分别访问前端页面和后端健康接口。如果服务未启动，测试快速失败并输出明确地址和启动提示，不尝试启动项目。
 

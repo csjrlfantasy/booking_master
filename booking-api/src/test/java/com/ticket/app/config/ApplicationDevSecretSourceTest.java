@@ -17,7 +17,7 @@ class ApplicationDevSecretSourceTest {
         assertTrue(yaml.contains("${PAYMENT_CALLBACK_SECRET_KEY}"));
         assertTrue(yaml.contains("${COURSE_TEST_KEY}"));
         assertTrue(yaml.contains("enabled: ${COURSE_TEST_SUPPORT_ENABLED:false}"));
-        assertFalse(yaml.contains("COURSE_TEST_KEY:playwright-course-local"));
+        assertFalse(yaml.matches("(?s).*COURSE_TEST_KEY:[^}]+}.*"));
         assertFalse(yaml.matches("(?s).*password:\\s+[^$\\s].*"));
     }
 }

@@ -10,12 +10,12 @@
 # 1. 注册
 curl -X POST http://localhost:8080/api/user/register \
   -H "Content-Type: application/json" \
-  -d '{"username":"testuser001","password":"Pass1234","phone":"13800000001"}'
+  -d '{"username":"testuser001","password":"<TEST_PASSWORD_FROM_ENV>","phone":"13800000001"}'
 
 # 2. 登录获取Token
 curl -X POST http://localhost:8080/api/user/login \
   -H "Content-Type: application/json" \
-  -d '{"username":"testuser001","password":"Pass1234"}'
+  -d '{"username":"testuser001","password":"<TEST_PASSWORD_FROM_ENV>"}'
 ```
 
 ---
@@ -33,7 +33,7 @@ curl -X POST http://localhost:8080/api/user/login \
 ```bash
 curl -X POST http://localhost:8080/api/user/login \
   -H "Content-Type: application/json" \
-  -d '{"username":"testuser001","password":"Pass1234"}'
+  -d '{"username":"testuser001","password":"<TEST_PASSWORD_FROM_ENV>"}'
 ```
 
 ### 预期结果
@@ -125,14 +125,14 @@ curl -X GET http://localhost:8080/api/categories \
 ```json
 {
   "username": "testuser001",
-  "password": "Pass1234",
+  "password": "<TEST_PASSWORD_FROM_ENV>",
   "phone": "13800000001"
 }
 ```
 
-### Token (当前有效)
+### Token（运行时登录获取，不保存到源码）
 ```
-eyJhbGciOiJIUzM4NCJ9.eyJ1c2VySWQiOjgsInVzZXJuYW1lIjoidGVzdHVzZXIwMDEiLCJzdWIiOiI4LXRlc3R1c2VyMDAxIiwiaWF0IjoxNzc1OTIxMjgyLCJleHAiOjE3NzYwMDc2ODJ9.p8SaUS-bGrkwrnVd1FX3oTh4r5MM5I9OwxuQY8Dg7_lm1K6agXtIZdDa9LzXYkox
+<TOKEN_FROM_LOGIN>
 ```
 
 ---

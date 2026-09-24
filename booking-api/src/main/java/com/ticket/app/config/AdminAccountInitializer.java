@@ -7,6 +7,7 @@ import com.ticket.app.repository.user.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.CommandLineRunner;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 @Slf4j
@@ -15,9 +16,11 @@ import org.springframework.stereotype.Component;
 public class AdminAccountInitializer implements CommandLineRunner {
 
     public static final String DEFAULT_ADMIN_USERNAME = "admin";
-    public static final String DEFAULT_ADMIN_PASSWORD = "Admin@123456";
 
     private final UserRepository userRepository;
+
+    @Value("${BOOKING_ADMIN_PASSWORD:}")
+    private String initialAdminPassword;
 
     @Override
     public void run(String... args) {
@@ -29,9 +32,13 @@ public class AdminAccountInitializer implements CommandLineRunner {
             return;
         }
 
+        if (initialAdminPassword == null || initialAdminPassword.isBlank()) {
+            throw new IllegalStateException("BOOKING_ADMIN_PASSWORD is required to create the administrator account");
+        }
+
         User admin = new User();
         admin.setUsername(DEFAULT_ADMIN_USERNAME);
-        admin.setPassword(PasswordUtils.encode(DEFAULT_ADMIN_PASSWORD));
+        admin.setPassword(PasswordUtils.encode(initialAdminPassword));
         admin.setPhone("13800000000");
         admin.setEmail("admin@ticketmore.local");
         admin.setNickname("系统管理员");

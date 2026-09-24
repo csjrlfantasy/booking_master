@@ -111,7 +111,7 @@ class TestConfig:
     
     # 测试数据
     TEST_USER_PHONE = "13812345678"
-    TEST_USER_PASSWORD = "Test@123456"
+    TEST_USER_PASSWORD = "<ARCHIVED_PASSWORD_UNSET>"
     TEST_USER_USERNAME = "test_user"
 
 

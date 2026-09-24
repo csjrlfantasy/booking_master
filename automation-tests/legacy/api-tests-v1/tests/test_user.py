@@ -35,7 +35,7 @@ class TestUserRegister:
             data = {
                 "username": random_username,
                 "phone": random_phone,
-                "password": "Test@123456",
+                "password": "<ARCHIVED_PASSWORD_UNSET>",
                 "smsCode": "123456"
             }
             response = http_client.post("/api/user/register", json_data=data)
@@ -59,7 +59,7 @@ class TestUserRegister:
         data = {
             "username": "existing_user",
             "phone": "13800138999",
-            "password": "Test@123456",
+            "password": "<ARCHIVED_PASSWORD_UNSET>",
             "smsCode": "123456"
         }
         response = http_client.post("/api/user/register", json_data=data)
@@ -75,7 +75,7 @@ class TestUserRegister:
         data = {
             "username": random_username,
             "phone": "13800138000",  # 已存在的手机号
-            "password": "Test@123456",
+            "password": "<ARCHIVED_PASSWORD_UNSET>",
             "smsCode": "123456"
         }
         response = http_client.post("/api/user/register", json_data=data)
@@ -132,7 +132,7 @@ class TestUserLogin:
         # 使用实际API格式: username + password
         data = {
             "username": "test_user",
-            "password": "Test@123456"
+            "password": "<ARCHIVED_PASSWORD_UNSET>"
         }
         
         with allure.step("发送登录请求"):
@@ -175,7 +175,7 @@ class TestUserLogin:
         data = {
             "loginType": "password",
             "account": "13900000000",
-            "password": "Test@123456"
+            "password": "<ARCHIVED_PASSWORD_UNSET>"
         }
         response = http_client.post("/api/user/login", json_data=data)
         
@@ -352,7 +352,7 @@ def test_token_refresh(http_client: HttpClient):
 def test_change_password(auth_client: HttpClient):
     """测试修改密码"""
     data = {
-        "oldPassword": "Test@123456",
+        "oldPassword": "<ARCHIVED_PASSWORD_UNSET>",
         "newPassword": "Test@654321"
     }
     response = auth_client.post("/api/user/change-password", json_data=data)

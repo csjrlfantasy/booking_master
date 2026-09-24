@@ -50,7 +50,7 @@ class ApplicationDevSecretSourceTest {
         assertTrue(yaml.contains("${JWT_SECRET}"));
         assertTrue(yaml.contains("${PAYMENT_CALLBACK_SECRET_KEY}"));
         assertTrue(yaml.contains("${COURSE_TEST_KEY}"));
-        assertFalse(yaml.contains("COURSE_TEST_KEY:playwright-course-local"));
+        assertFalse(yaml.contains("COURSE_TEST_KEY:<SECRET_FROM_ENV>"));
         assertFalse(yaml.matches("(?s).*password:\\s+[^$\\s].*"));
     }
 }
@@ -119,7 +119,7 @@ void deleteUserDelegatesForMatchingKey() {
     when(service.cleanupUser("a1b2c3d4", 7L)).thenReturn(response);
 
     Result<CourseCleanupResponse> result =
-            controller.deleteUser("playwright-course-local", 7L, "a1b2c3d4");
+            controller.deleteUser("<SECRET_FROM_ENV>", 7L, "a1b2c3d4");
 
     assertEquals(response, result.getData());
     verify(service).cleanupUser("a1b2c3d4", 7L);

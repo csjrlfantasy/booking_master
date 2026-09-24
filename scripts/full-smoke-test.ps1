@@ -1,5 +1,9 @@
 $ErrorActionPreference = "Stop"
 
+if ([string]::IsNullOrWhiteSpace($env:BOOKING_ADMIN_PASSWORD)) {
+    throw "BOOKING_ADMIN_PASSWORD is required for the administrator smoke test."
+}
+
 $baseUrl = "http://127.0.0.1:3000/api"
 $frontendHealthUrl = "http://127.0.0.1:3000"
 $backendHealthUrl = "http://127.0.0.1:8088/api/actuator/health"
@@ -22,7 +26,7 @@ Assert-ServiceAvailable "Backend API" $backendHealthUrl
 
 $loginBody = @{
     username = "admin"
-    password = "Admin@123456"
+    password = $env:BOOKING_ADMIN_PASSWORD
 } | ConvertTo-Json
 
 $login = Invoke-RestMethod -Uri "$baseUrl/admin/login" -Method POST -Body $loginBody -ContentType "application/json" -TimeoutSec 10

@@ -71,7 +71,7 @@ class TestAPIResponseTime:
         for i in range(10):
             elapsed, response = self._measure_response_time(
                 client, "POST", "/api/user/login",
-                json_data={"username": "test_user", "password": "Test@123456"}
+                json_data={"username": "test_user", "password": "<ARCHIVED_PASSWORD_UNSET>"}
             )
             response_times.append(elapsed)
             logger.info(f"登录第{i+1}次响应时间: {elapsed:.3f}s")
@@ -99,7 +99,7 @@ class TestAPIResponseTime:
         client = HttpClient(base_url="http://localhost:8088")
         login_resp = client.post("/api/user/login", json_data={
             "username": "test_user",
-            "password": "Test@123456"
+            "password": "<ARCHIVED_PASSWORD_UNSET>"
         })
         
         if login_resp.get("code") == 0:
@@ -174,7 +174,7 @@ class TestAPIResponseTime:
         # 登录
         login_resp = client.post("/api/user/login", json_data={
             "username": "test_user",
-            "password": "Test@123456"
+            "password": "<ARCHIVED_PASSWORD_UNSET>"
         })
         
         if login_resp.get("code") == 0:
@@ -232,7 +232,7 @@ class TestConcurrency:
             try:
                 response = client.post("/api/user/login", json_data={
                     "username": "test_user",
-                    "password": "Test@123456"
+                    "password": "<ARCHIVED_PASSWORD_UNSET>"
                 })
                 success = response.get("code") == 0
             except Exception as e:
@@ -284,7 +284,7 @@ class TestConcurrency:
         client = HttpClient(base_url="http://localhost:8088")
         login_resp = client.post("/api/user/login", json_data={
             "username": "test_user",
-            "password": "Test@123456"
+            "password": "<ARCHIVED_PASSWORD_UNSET>"
         })
         
         if login_resp.get("code") != 0:
@@ -350,7 +350,7 @@ class TestConcurrency:
         client = HttpClient(base_url="http://localhost:8088")
         login_resp = client.post("/api/user/login", json_data={
             "username": "test_user",
-            "password": "Test@123456"
+            "password": "<ARCHIVED_PASSWORD_UNSET>"
         })
         
         if login_resp.get("code") != 0:
@@ -435,7 +435,7 @@ class TestStress:
         client = HttpClient(base_url="http://localhost:8088")
         login_resp = client.post("/api/user/login", json_data={
             "username": "test_user",
-            "password": "Test@123456"
+            "password": "<ARCHIVED_PASSWORD_UNSET>"
         })
         
         if login_resp.get("code") != 0:
@@ -518,7 +518,7 @@ class TestDatabasePerformance:
         # 登录
         login_resp = client.post("/api/user/login", json_data={
             "username": "test_user",
-            "password": "Test@123456"
+            "password": "<ARCHIVED_PASSWORD_UNSET>"
         })
         
         if login_resp.get("code") == 0:
@@ -555,7 +555,7 @@ class TestDatabasePerformance:
         # 登录
         login_resp = client.post("/api/user/login", json_data={
             "username": "test_user",
-            "password": "Test@123456"
+            "password": "<ARCHIVED_PASSWORD_UNSET>"
         })
         
         if login_resp.get("code") == 0:
