@@ -1,104 +1,87 @@
-/**
- * TicketCard 票品卡片组件
- */
 import React from 'react';
-import {View, Text, Image, TouchableOpacity, StyleSheet} from 'react-native';
+import {
+  Image,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import type {Ticket} from '../../types';
-import {Colors, Typography, Spacing, BorderRadius, Shadows} from '../../constants';
+import {BorderRadius, Colors, Shadows, Spacing, Typography} from '../../constants';
 
 interface TicketCardProps {
   ticket: Ticket;
   onPress?: (ticket: Ticket) => void;
+  onShare?: (ticket: Ticket) => void;
   style?: 'vertical' | 'horizontal';
   showVenue?: boolean;
   showTime?: boolean;
 }
 
+function getStatusInfo(status: Ticket['status']) {
+  switch (status) {
+    case 'onsale':
+      return {text: '售票中', color: Colors.success[500]};
+    case 'upcoming':
+      return {text: '即将开售', color: Colors.warning[500]};
+    case 'soldout':
+      return {text: '已售罄', color: Colors.error[500]};
+    case 'cancelled':
+      return {text: '已下架', color: Colors.gray[500]};
+    default:
+      return {text: '', color: Colors.gray[500]};
+  }
+}
+
+function formatTime(timeStr: string) {
+  const date = new Date(timeStr);
+  return `${date.getMonth() + 1}月${date.getDate()}日 ${String(date.getHours()).padStart(2, '0')}:${String(
+    date.getMinutes(),
+  ).padStart(2, '0')}`;
+}
+
 const TicketCard: React.FC<TicketCardProps> = ({
   ticket,
   onPress,
+  onShare,
   style = 'vertical',
   showVenue = true,
   showTime = true,
 }) => {
-  const handlePress = () => {
-    onPress?.(ticket);
-  };
-
-  // 获取状态文字和颜色
-  const getStatusInfo = () => {
-    switch (ticket.status) {
-      case 'onsale':
-        return {text: '售票中', color: Colors.success[500]};
-      case 'upcoming':
-        return {text: '即将开售', color: Colors.warning[500]};
-      case 'soldout':
-        return {text: '已售罄', color: Colors.error[500]};
-      case 'cancelled':
-        return {text: '已取消', color: Colors.gray[500]};
-      default:
-        return {text: '', color: Colors.gray[500]};
-    }
-  };
-
-  const statusInfo = getStatusInfo();
-
-  // 格式化时间
-  const formatTime = (timeStr: string) => {
-    const date = new Date(timeStr);
-    return `${date.getMonth() + 1}月${date.getDate()}日 ${date.getHours()}:${date.getMinutes().toString().padStart(2, '0')}`;
-  };
-
-  // 判断是否有折扣价
+  const statusInfo = getStatusInfo(ticket.status);
   const hasDiscount = ticket.isDiscount && ticket.discountPrice;
 
   if (style === 'horizontal') {
     return (
-      <TouchableOpacity
-        style={[styles.cardHorizontal, Shadows.sm]}
-        onPress={handlePress}
-        activeOpacity={0.9}
-      >
-        <Image
-          source={{uri: ticket.posterUrl}}
-          style={styles.posterHorizontal}
-          resizeMode="cover"
-        />
-        <View style={styles.contentHorizontal}>
-          <View style={styles.titleRow}>
+      <TouchableOpacity style={[styles.horizontalCard, Shadows.sm]} activeOpacity={0.9} onPress={() => onPress?.(ticket)}>
+        <Image source={{uri: ticket.posterUrl}} style={styles.horizontalPoster} resizeMode="cover" />
+        <View style={styles.horizontalBody}>
+          <View style={styles.headerRow}>
             <Text style={styles.title} numberOfLines={2}>
               {ticket.name}
             </Text>
-            {ticket.isHot && (
-              <View style={styles.hotTag}>
-                <Text style={styles.hotTagText}>热</Text>
-              </View>
-            )}
+            {onShare ? (
+              <TouchableOpacity style={styles.shareButton} onPress={() => onShare(ticket)}>
+                <Text style={styles.shareButtonText}>分享</Text>
+              </TouchableOpacity>
+            ) : null}
           </View>
-          {ticket.subtitle && (
+          {ticket.subtitle ? (
             <Text style={styles.subtitle} numberOfLines={1}>
               {ticket.subtitle}
             </Text>
-          )}
-          {showVenue && (
-            <Text style={styles.venue} numberOfLines={1}>
-              📍 {ticket.venue.name}
-            </Text>
-          )}
-          {showTime && (
-            <Text style={styles.time}>🕐 {formatTime(ticket.showTime)}</Text>
-          )}
-          <View style={styles.priceRow}>
-            <View style={styles.priceContainer}>
+          ) : null}
+          {showVenue ? <Text style={styles.metaText}>{ticket.venue.name}</Text> : null}
+          {showTime ? <Text style={styles.metaText}>{formatTime(ticket.showTime)}</Text> : null}
+          <View style={styles.bottomRow}>
+            <View style={styles.priceBlock}>
               {hasDiscount ? (
                 <>
-                  <Text style={styles.discountPrice}>¥{ticket.discountPrice}</Text>
-                  <Text style={styles.originalPrice}>¥{ticket.priceRange.min}</Text>
+                  <Text style={styles.priceText}>¥{ticket.discountPrice}</Text>
+                  <Text style={styles.strikeText}>¥{ticket.priceRange.min}</Text>
                 </>
               ) : (
-                <Text style={styles.price}>
-                  ¥{ticket.priceRange.min}-{ticket.priceRange.max}
-                </Text>
+                <Text style={styles.priceText}>¥{ticket.priceRange.min}-¥{ticket.priceRange.max}</Text>
               )}
             </View>
             <View style={[styles.statusBadge, {backgroundColor: statusInfo.color}]}>
@@ -111,48 +94,31 @@ const TicketCard: React.FC<TicketCardProps> = ({
   }
 
   return (
-    <TouchableOpacity
-      style={[styles.card, Shadows.sm, {width: 160}]}
-      onPress={handlePress}
-      activeOpacity={0.9}
-    >
-      <Image
-        source={{uri: ticket.posterUrl}}
-        style={styles.poster}
-        resizeMode="cover"
-      />
-      {ticket.isHot && (
-        <View style={styles.hotBadge}>
-          <Text style={styles.hotBadgeText}>HOT</Text>
-        </View>
-      )}
-      {hasDiscount && (
-        <View style={styles.discountBadge}>
-          <Text style={styles.discountBadgeText}>惠</Text>
-        </View>
-      )}
-      <View style={styles.info}>
+    <TouchableOpacity style={[styles.verticalCard, Shadows.sm]} activeOpacity={0.9} onPress={() => onPress?.(ticket)}>
+      <Image source={{uri: ticket.posterUrl}} style={styles.verticalPoster} resizeMode="cover" />
+      {onShare ? (
+        <TouchableOpacity style={styles.verticalShare} onPress={() => onShare(ticket)}>
+          <Text style={styles.verticalShareText}>分享</Text>
+        </TouchableOpacity>
+      ) : null}
+      <View style={styles.verticalBody}>
         <Text style={styles.title} numberOfLines={2}>
           {ticket.name}
         </Text>
-        {showVenue && (
-          <Text style={styles.venueName} numberOfLines={1}>
+        {showVenue ? (
+          <Text style={styles.smallMeta} numberOfLines={1}>
             {ticket.venue.name}
           </Text>
-        )}
-        {showTime && (
-          <Text style={styles.timeText}>{formatTime(ticket.showTime)}</Text>
-        )}
-        <View style={styles.priceRowBottom}>
+        ) : null}
+        {showTime ? <Text style={styles.smallMeta}>{formatTime(ticket.showTime)}</Text> : null}
+        <View style={styles.verticalFooter}>
           {hasDiscount ? (
             <>
-              <Text style={styles.discountPriceSmall}>¥{ticket.discountPrice}</Text>
-              <Text style={styles.originalPriceSmall}>¥{ticket.priceRange.min}</Text>
+              <Text style={styles.priceText}>¥{ticket.discountPrice}</Text>
+              <Text style={styles.strikeText}>¥{ticket.priceRange.min}</Text>
             </>
           ) : (
-            <Text style={styles.priceSmall}>
-              ¥{ticket.priceRange.min}起
-            </Text>
+            <Text style={styles.priceText}>¥{ticket.priceRange.min}起</Text>
           )}
         </View>
       </View>
@@ -161,174 +127,126 @@ const TicketCard: React.FC<TicketCardProps> = ({
 };
 
 const styles = StyleSheet.create({
-  // 垂直布局样式
-  card: {
+  verticalCard: {
     width: 160,
+    marginRight: Spacing.sm,
     backgroundColor: Colors.white,
     borderRadius: BorderRadius.md,
     overflow: 'hidden',
-    marginRight: Spacing.sm,
   },
-  poster: {
+  verticalPoster: {
     width: '100%',
     height: 200,
     backgroundColor: Colors.gray[200],
   },
-  info: {
+  verticalShare: {
+    position: 'absolute',
+    top: Spacing.sm,
+    right: Spacing.sm,
+    borderRadius: 999,
+    backgroundColor: 'rgba(17,24,39,0.78)',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  verticalShareText: {
+    color: Colors.white,
+    fontSize: Typography.caption.fontSize,
+    fontWeight: '700',
+  },
+  verticalBody: {
     padding: Spacing.sm,
   },
-  title: {
-    fontSize: Typography.body.fontSize,
-    fontWeight: '600',
-    color: Colors.gray[900],
-    lineHeight: 20,
-    height: 40,
-  },
-  venueName: {
-    fontSize: Typography.caption.fontSize,
-    color: Colors.gray[500],
-    marginTop: Spacing.xs,
-  },
-  timeText: {
-    fontSize: Typography.caption.fontSize,
-    color: Colors.primary[500],
-    marginTop: Spacing.xs,
-  },
-  priceRowBottom: {
+  verticalFooter: {
+    marginTop: Spacing.sm,
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: Spacing.sm,
   },
-  priceSmall: {
-    fontSize: Typography.body.fontSize,
-    fontWeight: '700',
-    color: Colors.error[500],
-  },
-  // 折扣价格样式
-  discountPriceSmall: {
-    fontSize: Typography.body.fontSize,
-    fontWeight: '700',
-    color: Colors.error[500],
-  },
-  originalPriceSmall: {
-    fontSize: Typography.caption.fontSize,
-    color: Colors.gray[400],
-    textDecorationLine: 'line-through',
-    marginLeft: Spacing.xs,
-  },
-  // 标签样式
-  hotBadge: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    backgroundColor: Colors.error[500],
-    paddingHorizontal: Spacing.xs,
-    paddingVertical: 2,
-    borderBottomRightRadius: BorderRadius.sm,
-  },
-  hotBadgeText: {
-    color: Colors.white,
-    fontSize: 10,
-    fontWeight: '700',
-  },
-  discountBadge: {
-    position: 'absolute',
-    top: 0,
-    right: 0,
-    backgroundColor: Colors.warning[500],
-    paddingHorizontal: Spacing.xs,
-    paddingVertical: 2,
-    borderBottomLeftRadius: BorderRadius.sm,
-  },
-  discountBadgeText: {
-    color: Colors.white,
-    fontSize: 10,
-    fontWeight: '700',
-  },
-  // 水平布局样式
-  cardHorizontal: {
+  horizontalCard: {
     flexDirection: 'row',
-    backgroundColor: Colors.white,
-    borderRadius: BorderRadius.md,
-    overflow: 'hidden',
     marginBottom: Spacing.md,
+    borderRadius: BorderRadius.md,
+    backgroundColor: Colors.white,
+    overflow: 'hidden',
   },
-  posterHorizontal: {
+  horizontalPoster: {
     width: 100,
     height: 140,
     backgroundColor: Colors.gray[200],
   },
-  contentHorizontal: {
+  horizontalBody: {
     flex: 1,
     padding: Spacing.sm,
     justifyContent: 'space-between',
   },
-  titleRow: {
+  headerRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
+    gap: Spacing.xs,
+  },
+  title: {
+    flex: 1,
+    fontSize: Typography.body.fontSize,
+    fontWeight: '700',
+    color: Colors.gray[900],
+    lineHeight: 20,
+  },
+  shareButton: {
+    borderWidth: 1,
+    borderColor: Colors.primary[200],
+    borderRadius: BorderRadius.sm,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  shareButtonText: {
+    color: Colors.primary[500],
+    fontSize: Typography.caption.fontSize,
+    fontWeight: '700',
   },
   subtitle: {
+    marginTop: 4,
     fontSize: Typography.bodySmall.fontSize,
     color: Colors.gray[500],
-    marginTop: Spacing.xs,
   },
-  venue: {
+  metaText: {
+    marginTop: 4,
     fontSize: Typography.caption.fontSize,
     color: Colors.gray[500],
-    marginTop: Spacing.xs,
   },
-  time: {
+  smallMeta: {
+    marginTop: 4,
     fontSize: Typography.caption.fontSize,
-    color: Colors.primary[500],
-    marginTop: Spacing.xs,
+    color: Colors.gray[500],
   },
-  priceRow: {
+  bottomRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    justifyContent: 'space-between',
     marginTop: Spacing.sm,
   },
-  priceContainer: {
+  priceBlock: {
     flexDirection: 'row',
-    alignItems: 'baseline',
+    alignItems: 'center',
   },
-  price: {
+  priceText: {
     fontSize: Typography.body.fontSize,
-    fontWeight: '700',
     color: Colors.error[500],
-  },
-  discountPrice: {
-    fontSize: Typography.body.fontSize,
     fontWeight: '700',
-    color: Colors.error[500],
   },
-  originalPrice: {
+  strikeText: {
+    marginLeft: Spacing.xs,
     fontSize: Typography.caption.fontSize,
     color: Colors.gray[400],
     textDecorationLine: 'line-through',
-    marginLeft: Spacing.xs,
   },
   statusBadge: {
-    paddingHorizontal: Spacing.xs,
-    paddingVertical: 2,
     borderRadius: BorderRadius.sm,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
   },
   statusText: {
     color: Colors.white,
-    fontSize: 10,
-    fontWeight: '600',
-  },
-  hotTag: {
-    backgroundColor: Colors.error[500],
-    paddingHorizontal: Spacing.xs,
-    paddingVertical: 1,
-    borderRadius: 2,
-    marginLeft: Spacing.xs,
-  },
-  hotTagText: {
-    color: Colors.white,
-    fontSize: 10,
-    fontWeight: '600',
+    fontSize: Typography.caption.fontSize,
+    fontWeight: '700',
   },
 });
 

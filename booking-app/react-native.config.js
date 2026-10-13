@@ -14,13 +14,4 @@ module.exports = {
     },
   },
   assets: ['./assets'],
-  dependencies: {
-    'react-native-mmkv': {
-      platforms: {
-        android: {
-          sourceDir: './node_modules/react-native-mmkv',
-        },
-      },
-    },
-  },
 };

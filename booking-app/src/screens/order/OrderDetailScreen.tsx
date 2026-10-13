@@ -23,6 +23,7 @@ import {orderApi} from '../../services/api';
 import {Button} from '../../components';
 import Loading from '../../components/common/Loading';
 import {toast} from '../../components/common/Toast';
+import {shareTicket} from '../../utils/shareTicket';
 
 type OrderDetailScreenNavigationProp = NativeStackNavigationProp<OrderStackParamList>;
 type OrderDetailScreenRouteProp = RouteProp<OrderStackParamList, 'OrderDetail'>;
@@ -120,6 +121,16 @@ const OrderDetailScreen: React.FC = () => {
   // 立即支付
   const handlePay = () => {
     navigation.getParent()?.navigate('Payment' as any, {orderId});
+  };
+
+  const handleShare = () => {
+    const firstItem = order?.items?.[0];
+    if (!firstItem) {
+      return;
+    }
+    shareTicket(firstItem.ticketName, firstItem.ticketId).catch(error => {
+      console.error('share order ticket failed', error);
+    });
   };
 
   // 查看电子票
@@ -433,6 +444,14 @@ const OrderDetailScreen: React.FC = () => {
       {/* 底部操作栏 */}
       <View style={[styles.footer, Shadows.lg]}>
         <View style={styles.footerActions}>
+          {order.items.length > 0 && (
+            <TouchableOpacity
+              style={[styles.footerBtn, styles.footerBtnOutline]}
+              onPress={handleShare}
+            >
+              <Text style={styles.footerBtnTextGray}>分享票务</Text>
+            </TouchableOpacity>
+          )}
           {(order.status === 'PENDING_PAYMENT') && (
             <>
               <TouchableOpacity

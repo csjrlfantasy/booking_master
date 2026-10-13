@@ -15,9 +15,11 @@ import {Colors, Typography, Spacing, BorderRadius, Shadows} from '../../constant
 import Loading from '../../components/common/Loading';
 import type {RootStackParamList} from '../../navigation/types';
 import {userApi, type UserProfileResponse} from '../../services/api/userApi';
+import {couponApi} from '../../services/api';
 import {userStorage} from '../../services/storage';
 import {useAppDispatch, useAppSelector} from '../../store/hooks';
 import {logout} from '../../store/slices/authSlice';
+import {setCoupons} from '../../store/slices/userSlice';
 
 type ProfileScreenNavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -77,6 +79,20 @@ const ProfileScreen: React.FC = () => {
   useEffect(() => {
     loadUserProfile();
   }, [loadUserProfile]);
+
+  useEffect(() => {
+    if (!user) {
+      dispatch(setCoupons([]));
+      return;
+    }
+    const couponSummaryRequest = couponApi.getUserCoupons({status: 'available', page: 1, pageSize: 50});
+    couponSummaryRequest
+      .then(result => dispatch(setCoupons(result.list || [])))
+      .catch(error => {
+        console.error('load coupon summary failed', error);
+        dispatch(setCoupons([]));
+      });
+  }, [dispatch, user]);
 
   const handleLogout = useCallback(() => {
     Alert.alert('退出登录', '确定要退出当前账号吗？', [

@@ -1,199 +1,126 @@
-/**
- * 优惠券选择器组件
- */
-import React, {useState, useEffect} from 'react';
+import React, {useEffect, useMemo, useState} from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
   FlatList,
   Modal,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import {Colors, Typography, Spacing, BorderRadius} from '../../constants';
-import type {UserCoupon, Coupon} from '../../types';
+import type {UserCoupon} from '../../types';
 import {couponApi} from '../../services/api';
 
 interface CouponSelectorProps {
   orderAmount: number;
+  ticketId?: number;
   selectedCouponId?: string;
   onSelect: (coupon: UserCoupon | null) => void;
 }
 
+function getCouponDiscount(coupon: UserCoupon, orderAmount: number) {
+  if (coupon.coupon.type === 'cash') {
+    return coupon.coupon.value;
+  }
+  const discountAmount = orderAmount * (coupon.coupon.value / 100);
+  return Math.min(orderAmount, discountAmount);
+}
+
 const CouponSelector: React.FC<CouponSelectorProps> = ({
   orderAmount,
+  ticketId,
   selectedCouponId,
   onSelect,
 }) => {
   const [visible, setVisible] = useState(false);
   const [coupons, setCoupons] = useState<UserCoupon[]>([]);
-  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (visible) {
-      fetchCoupons();
+    if (!visible) {
+      return;
     }
-  }, [visible]);
 
-  const fetchCoupons = async () => {
-    setLoading(true);
-    try {
-      const result = await couponApi.getUserCoupons({status: 'available'});
-      // 过滤出可用的优惠券
-      const availableCoupons = result.list.filter((coupon) => {
-        if (coupon.coupon.minAmount && orderAmount < coupon.coupon.minAmount) {
-          return false;
-        }
-        return true;
+    const availableCouponRequest = couponApi.getAvailableCoupons({
+      orderAmount,
+      ticketId,
+    });
+    availableCouponRequest
+      .then(setCoupons)
+      .catch(error => {
+        console.error('load available coupons failed', error);
+        setCoupons([]);
       });
-      setCoupons(availableCoupons);
-    } catch (error) {
-      console.error('获取优惠券失败:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [visible, orderAmount, ticketId]);
 
-  const handleSelect = (coupon: UserCoupon | null) => {
-    onSelect(coupon);
-    setVisible(false);
-  };
-
-  const selectedCoupon = coupons.find((c) => c.id === selectedCouponId);
-
-  // 计算优惠金额
-  const calculateDiscount = (coupon: Coupon): number => {
-    if (coupon.type === 'cash') {
-      return coupon.value;
-    } else if (coupon.type === 'discount') {
-      const discount = orderAmount * (1 - coupon.value / 100);
-      const maxDiscount = coupon.maxDiscount || Infinity;
-      return Math.min(discount, maxDiscount);
-    }
-    return 0;
-  };
+  const selectedCoupon = useMemo(
+    () => coupons.find(item => item.id === selectedCouponId),
+    [coupons, selectedCouponId],
+  );
 
   return (
     <View>
-      {/* 选择按钮 */}
       <TouchableOpacity
         style={styles.selector}
+        activeOpacity={0.75}
         onPress={() => setVisible(true)}
-        activeOpacity={0.7}
       >
-        <View style={styles.selectorLeft}>
-          <Text style={styles.selectorIcon}>🎫</Text>
+        <View>
           <Text style={styles.selectorTitle}>优惠券</Text>
+          <Text style={styles.selectorHint}>
+            {selectedCoupon ? selectedCoupon.coupon.name : coupons.length > 0 ? `${coupons.length}张可用` : '选择可用优惠券'}
+          </Text>
         </View>
-        <View style={styles.selectorRight}>
-          {selectedCoupon ? (
-            <Text style={styles.selectedText}>
-              -¥{calculateDiscount(selectedCoupon.coupon).toFixed(2)}
-            </Text>
-          ) : (
-            <Text style={styles.placeholderText}>
-              {coupons.length > 0 ? `${coupons.length}张可用` : '暂无可用'}
-            </Text>
-          )}
-          <Text style={styles.arrow}>›</Text>
-        </View>
+        <Text style={styles.selectorValue}>
+          {selectedCoupon ? `-¥${getCouponDiscount(selectedCoupon, orderAmount).toFixed(2)}` : '去选择'}
+        </Text>
       </TouchableOpacity>
 
-      {/* 优惠券选择弹窗 */}
-      <Modal
-        visible={visible}
-        animationType="slide"
-        transparent
-        onRequestClose={() => setVisible(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            {/* 标题栏 */}
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>选择优惠券</Text>
-              <TouchableOpacity
-                style={styles.closeBtn}
-                onPress={() => setVisible(false)}
-              >
-                <Text style={styles.closeText}>✕</Text>
+      <Modal visible={visible} transparent animationType="slide" onRequestClose={() => setVisible(false)}>
+        <View style={styles.overlay}>
+          <View style={styles.sheet}>
+            <View style={styles.header}>
+              <Text style={styles.headerTitle}>选择优惠券</Text>
+              <TouchableOpacity onPress={() => setVisible(false)}>
+                <Text style={styles.closeText}>关闭</Text>
               </TouchableOpacity>
             </View>
 
-            {/* 不使用优惠券选项 */}
             <TouchableOpacity
-              style={[
-                styles.couponItem,
-                !selectedCouponId && styles.couponItemSelected,
-              ]}
-              onPress={() => handleSelect(null)}
+              style={[styles.item, !selectedCouponId && styles.itemSelected]}
+              onPress={() => {
+                onSelect(null);
+                setVisible(false);
+              }}
             >
-              <View style={styles.couponLeft}>
-                <Text style={styles.noCouponText}>不使用优惠券</Text>
-              </View>
-              <View style={styles.couponRight}>
-                <View style={styles.radio}>
-                  {!selectedCouponId && <View style={styles.radioInner} />}
-                </View>
-              </View>
+              <Text style={styles.itemTitle}>不使用优惠券</Text>
+              <Text style={styles.itemMeta}>原价支付</Text>
             </TouchableOpacity>
 
-            {/* 优惠券列表 */}
             <FlatList
               data={coupons}
-              keyExtractor={(item) => item.id}
-              style={styles.couponList}
+              keyExtractor={item => item.id}
               renderItem={({item}) => {
-                const discount = calculateDiscount(item.coupon);
-                const isSelected = item.id === selectedCouponId;
-                const isDisabled = item.coupon.minAmount && orderAmount < item.coupon.minAmount;
-
+                const selected = item.id === selectedCouponId;
                 return (
                   <TouchableOpacity
-                    style={[
-                      styles.couponItem,
-                      isSelected ? styles.couponItemSelected : undefined,
-                      isDisabled ? styles.couponItemDisabled : undefined,
-                    ]}
-                    onPress={() => !isDisabled && handleSelect(item)}
-                    disabled={!!isDisabled}
+                    style={[styles.item, selected && styles.itemSelected]}
+                    activeOpacity={0.8}
+                    onPress={() => {
+                      onSelect(item);
+                      setVisible(false);
+                    }}
                   >
-                    <View style={styles.couponLeft}>
-                      <View style={styles.couponValue}>
-                        {item.coupon.type === 'cash' ? (
-                          <Text style={styles.couponAmount}>
-                            ¥{item.coupon.value}
-                          </Text>
-                        ) : (
-                          <Text style={styles.couponAmount}>
-                            {item.coupon.value}折
-                          </Text>
-                        )}
-                      </View>
-                      <View style={styles.couponInfo}>
-                        <Text style={styles.couponName}>{item.coupon.name}</Text>
-                        {item.coupon.minAmount && (
-                          <Text style={styles.couponRule}>
-                            满¥{item.coupon.minAmount}可用
-                          </Text>
-                        )}
-                        <Text style={styles.couponTime}>
-                          有效期至: {item.coupon.endTime.split('T')[0]}
-                        </Text>
-                      </View>
+                    <View style={styles.itemLeft}>
+                      <Text style={styles.itemTitle}>{item.coupon.name}</Text>
+                      <Text style={styles.itemMeta}>
+                        满{item.coupon.minAmount || 0}可用 · 截止 {item.coupon.endTime?.slice(0, 10) || '--'}
+                      </Text>
                     </View>
-                    <View style={styles.couponRight}>
-                      <View style={[styles.radio, isSelected && styles.radioSelected]}>
-                        {isSelected && <View style={styles.radioInner} />}
-                      </View>
-                    </View>
+                    <Text style={styles.itemValue}>-¥{getCouponDiscount(item, orderAmount).toFixed(2)}</Text>
                   </TouchableOpacity>
                 );
               }}
-              ListEmptyComponent={
-                <View style={styles.emptyContainer}>
-                  <Text style={styles.emptyText}>暂无可用优惠券</Text>
-                </View>
-              }
+              ListEmptyComponent={<Text style={styles.emptyText}>暂无可用优惠券</Text>}
             />
           </View>
         </View>
@@ -204,57 +131,44 @@ const CouponSelector: React.FC<CouponSelectorProps> = ({
 
 const styles = StyleSheet.create({
   selector: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
     backgroundColor: Colors.white,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: Colors.gray[200],
     paddingHorizontal: Spacing.base,
     paddingVertical: Spacing.base,
-    borderRadius: BorderRadius.md,
-  },
-  selectorLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-  },
-  selectorIcon: {
-    fontSize: 18,
-    marginRight: Spacing.sm,
+    justifyContent: 'space-between',
   },
   selectorTitle: {
     fontSize: Typography.body.fontSize,
+    fontWeight: '700',
     color: Colors.gray[900],
   },
-  selectorRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  selectedText: {
-    fontSize: Typography.body.fontSize,
-    color: Colors.error[500],
-    fontWeight: '600',
-    marginRight: Spacing.xs,
-  },
-  placeholderText: {
-    fontSize: Typography.body.fontSize,
+  selectorHint: {
+    marginTop: 4,
+    fontSize: Typography.caption.fontSize,
     color: Colors.gray[500],
-    marginRight: Spacing.xs,
   },
-  arrow: {
-    fontSize: 20,
-    color: Colors.gray[400],
+  selectorValue: {
+    fontSize: Typography.body.fontSize,
+    color: Colors.primary[500],
+    fontWeight: '700',
   },
-  modalOverlay: {
+  overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: 'rgba(0,0,0,0.36)',
     justifyContent: 'flex-end',
   },
-  modalContent: {
+  sheet: {
+    maxHeight: '72%',
     backgroundColor: Colors.white,
     borderTopLeftRadius: BorderRadius.xl,
     borderTopRightRadius: BorderRadius.xl,
-    maxHeight: '70%',
+    paddingBottom: Spacing.lg,
   },
-  modalHeader: {
+  header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
@@ -263,111 +177,54 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: Colors.gray[100],
   },
-  modalTitle: {
-    fontSize: Typography.h3.fontSize,
-    fontWeight: '600',
+  headerTitle: {
+    fontSize: Typography.h4.fontSize,
+    fontWeight: '700',
     color: Colors.gray[900],
   },
-  closeBtn: {
-    width: 30,
-    height: 30,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   closeText: {
-    fontSize: 20,
-    color: Colors.gray[500],
+    fontSize: Typography.body.fontSize,
+    color: Colors.primary[500],
   },
-  couponList: {
-    flex: 1,
-  },
-  couponItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: Spacing.base,
+  item: {
     marginHorizontal: Spacing.base,
-    marginVertical: Spacing.sm,
-    backgroundColor: Colors.white,
-    borderRadius: BorderRadius.lg,
+    marginTop: Spacing.base,
+    borderRadius: BorderRadius.md,
     borderWidth: 1,
     borderColor: Colors.gray[200],
+    padding: Spacing.base,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
-  couponItemSelected: {
+  itemSelected: {
     borderColor: Colors.primary[500],
     backgroundColor: Colors.primary[50],
   },
-  couponItemDisabled: {
-    opacity: 0.5,
-  },
-  couponLeft: {
+  itemLeft: {
     flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
+    paddingRight: Spacing.base,
   },
-  couponValue: {
-    width: 70,
-    height: 70,
-    backgroundColor: Colors.secondary[500],
-    borderRadius: BorderRadius.md,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  couponAmount: {
-    fontSize: Typography.h3.fontSize,
-    fontWeight: '700',
-    color: Colors.white,
-  },
-  couponInfo: {
-    flex: 1,
-    marginLeft: Spacing.md,
-  },
-  couponName: {
+  itemTitle: {
     fontSize: Typography.body.fontSize,
-    fontWeight: '600',
+    fontWeight: '700',
     color: Colors.gray[900],
   },
-  couponRule: {
-    fontSize: Typography.bodySmall.fontSize,
-    color: Colors.gray[500],
-    marginTop: 2,
-  },
-  couponTime: {
+  itemMeta: {
+    marginTop: 4,
     fontSize: Typography.caption.fontSize,
     color: Colors.gray[500],
-    marginTop: 2,
   },
-  couponRight: {
-    marginLeft: Spacing.md,
-  },
-  noCouponText: {
+  itemValue: {
     fontSize: Typography.body.fontSize,
-    color: Colors.gray[700],
-  },
-  radio: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    borderWidth: 2,
-    borderColor: Colors.gray[300],
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  radioSelected: {
-    borderColor: Colors.primary[500],
-  },
-  radioInner: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: Colors.primary[500],
-  },
-  emptyContainer: {
-    alignItems: 'center',
-    paddingVertical: Spacing['3xl'],
+    fontWeight: '700',
+    color: Colors.error[500],
   },
   emptyText: {
-    fontSize: Typography.body.fontSize,
+    textAlign: 'center',
     color: Colors.gray[500],
+    paddingVertical: Spacing.xl,
+    fontSize: Typography.body.fontSize,
   },
 });
 

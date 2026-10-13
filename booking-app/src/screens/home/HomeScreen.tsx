@@ -24,6 +24,7 @@ import ticketMock from '../../services/mock/ticketMock';
 import Banner, {BannerItem} from '../../components/common/Banner';
 import TicketCard from '../../components/common/TicketCard';
 import Loading from '../../components/common/Loading';
+import {shareTicket} from '../../utils/shareTicket';
 
 // 导航类型
 type HomeScreenNavigationProp = NativeStackNavigationProp<
@@ -165,6 +166,12 @@ const HomeScreen: React.FC = () => {
     navigation.navigate('Ticket', {screen: 'TicketDetail', params: {ticketId: ticket.id}});
   };
 
+  const handleShareTicket = (ticket: Ticket) => {
+    shareTicket(ticket.name, ticket.id).catch(error => {
+      console.error('share ticket failed', error);
+    });
+  };
+
   // 跳转到分类页面
   const handleCategoryPress = (category: CategoryItem) => {
     navigation.navigate('Search', {screen: 'Search', params: {category: category.type}});
@@ -245,6 +252,7 @@ const HomeScreen: React.FC = () => {
               <TicketCard
                 ticket={item}
                 onPress={handleTicketPress}
+                onShare={handleShareTicket}
                 style="vertical"
               />
             )}
@@ -263,6 +271,7 @@ const HomeScreen: React.FC = () => {
                 key={ticket.id}
                 ticket={ticket}
                 onPress={handleTicketPress}
+                onShare={handleShareTicket}
                 style="horizontal"
               />
             ))}

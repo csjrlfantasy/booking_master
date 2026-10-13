@@ -1,12 +1,128 @@
-/**
- * 本地存储服务
- * 使用 MMKV 实现高性能键值存储
- */
-import {MMKV} from 'react-native-mmkv';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const storage = new MMKV();
+type PrimitiveValue = string | number | boolean;
 
-// 存储键名常量
+class CachedStorageService {
+  private cache = new Map<string, string>();
+  private hydrated = false;
+  private hydratePromise: Promise<void> | null = null;
+
+  async hydrate(): Promise<void> {
+    if (this.hydrated) {
+      return;
+    }
+
+    if (!this.hydratePromise) {
+      this.hydratePromise = (async () => {
+        const keys = await AsyncStorage.getAllKeys();
+        if (keys.length > 0) {
+          const entries = await AsyncStorage.multiGet(keys);
+          entries.forEach(([key, value]) => {
+            if (value !== null) {
+              this.cache.set(key, value);
+            }
+          });
+        }
+        this.hydrated = true;
+      })().finally(() => {
+        this.hydratePromise = null;
+      });
+    }
+
+    await this.hydratePromise;
+  }
+
+  setString(key: string, value: string): void {
+    this.cache.set(key, value);
+    void AsyncStorage.setItem(key, value);
+  }
+
+  getString(key: string): string | undefined {
+    return this.cache.get(key);
+  }
+
+  setNumber(key: string, value: number): void {
+    this.cache.set(key, String(value));
+    void AsyncStorage.setItem(key, String(value));
+  }
+
+  getNumber(key: string): number | undefined {
+    const value = this.cache.get(key);
+    if (value === undefined) {
+      return undefined;
+    }
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : undefined;
+  }
+
+  setBoolean(key: string, value: boolean): void {
+    this.cache.set(key, value ? 'true' : 'false');
+    void AsyncStorage.setItem(key, value ? 'true' : 'false');
+  }
+
+  getBoolean(key: string): boolean | undefined {
+    const value = this.cache.get(key);
+    if (value === undefined) {
+      return undefined;
+    }
+    return value === 'true';
+  }
+
+  setObject<T>(key: string, value: T): void {
+    const serialized = JSON.stringify(value);
+    this.cache.set(key, serialized);
+    void AsyncStorage.setItem(key, serialized);
+  }
+
+  getObject<T>(key: string): T | null {
+    const value = this.cache.get(key);
+    if (!value) {
+      return null;
+    }
+
+    try {
+      return JSON.parse(value) as T;
+    } catch {
+      return null;
+    }
+  }
+
+  delete(key: string): void {
+    this.cache.delete(key);
+    void AsyncStorage.removeItem(key);
+  }
+
+  contains(key: string): boolean {
+    return this.cache.has(key);
+  }
+
+  clearAll(): void {
+    this.cache.clear();
+    void AsyncStorage.clear();
+  }
+
+  getAllKeys(): string[] {
+    return Array.from(this.cache.keys());
+  }
+
+  async setItem(key: string, value: string): Promise<void> {
+    this.cache.set(key, value);
+    await AsyncStorage.setItem(key, value);
+  }
+
+  async getItem(key: string): Promise<string | null> {
+    await this.hydrate();
+    return this.cache.get(key) ?? null;
+  }
+
+  async removeItem(key: string): Promise<void> {
+    this.cache.delete(key);
+    await AsyncStorage.removeItem(key);
+  }
+}
+
+const storage = new CachedStorageService();
+
 export const StorageKeys = {
   AUTH_TOKEN: 'auth_token',
   REFRESH_TOKEN: 'refresh_token',
@@ -17,74 +133,70 @@ export const StorageKeys = {
   CART_DATA: 'cart_data',
 } as const;
 
-// 类型安全存储辅助方法
 export const storageService = {
-  // 字符串存储
+  hydrate: (): Promise<void> => storage.hydrate(),
+
   setString: (key: string, value: string): void => {
-    storage.set(key, value);
+    storage.setString(key, value);
   },
 
   getString: (key: string): string | undefined => {
     return storage.getString(key);
   },
 
-  // 数字存储
   setNumber: (key: string, value: number): void => {
-    storage.set(key, value);
+    storage.setNumber(key, value);
   },
 
   getNumber: (key: string): number | undefined => {
     return storage.getNumber(key);
   },
 
-  // 布尔存储
   setBoolean: (key: string, value: boolean): void => {
-    storage.set(key, value);
+    storage.setBoolean(key, value);
   },
 
   getBoolean: (key: string): boolean | undefined => {
     return storage.getBoolean(key);
   },
 
-  // JSON对象存储
   setObject: <T>(key: string, value: T): void => {
-    storage.set(key, JSON.stringify(value));
+    storage.setObject(key, value);
   },
 
   getObject: <T>(key: string): T | null => {
-    const value = storage.getString(key);
-    if (value) {
-      try {
-        return JSON.parse(value) as T;
-      } catch {
-        return null;
-      }
-    }
-    return null;
+    return storage.getObject<T>(key);
   },
 
-  // 删除
   delete: (key: string): void => {
     storage.delete(key);
   },
 
-  // 检查是否存在
   contains: (key: string): boolean => {
     return storage.contains(key);
   },
 
-  // 清空所有
   clearAll: (): void => {
     storage.clearAll();
   },
 
-  // 获取所有键
   getAllKeys: (): string[] => {
     return storage.getAllKeys();
   },
+
+  setItem: (key: string, value: string): Promise<void> => {
+    return storage.setItem(key, value);
+  },
+
+  getItem: (key: string): Promise<string | null> => {
+    return storage.getItem(key);
+  },
+
+  removeItem: (key: string): Promise<void> => {
+    return storage.removeItem(key);
+  },
 };
 
-// 用户相关存储辅助方法
 export const userStorage = {
   setToken: (token: string): void => {
     storageService.setString(StorageKeys.AUTH_TOKEN, token);
@@ -102,7 +214,7 @@ export const userStorage = {
     return storageService.getString(StorageKeys.REFRESH_TOKEN);
   },
 
-  setUser: (user: any): void => {
+  setUser: (user: unknown): void => {
     storageService.setObject(StorageKeys.USER_INFO, user);
   },
 

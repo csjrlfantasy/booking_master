@@ -1,45 +1,34 @@
-/**
- * Redux Store 配置
- */
-import {configureStore, combineReducers} from '@reduxjs/toolkit';
+import {combineReducers, configureStore} from '@reduxjs/toolkit';
 import {
-  persistStore,
-  persistReducer,
   FLUSH,
-  REHYDRATE,
   PAUSE,
   PERSIST,
+  persistReducer,
+  persistStore,
   PURGE,
   REGISTER,
+  REHYDRATE,
 } from 'redux-persist';
-import {MMKV} from 'react-native-mmkv';
 
+import {storageService} from '../services/storage';
+import appReducer from './slices/appSlice';
 import authReducer from './slices/authSlice';
 import cartReducer from './slices/cartSlice';
 import orderReducer from './slices/orderSlice';
 import userReducer from './slices/userSlice';
-import appReducer from './slices/appSlice';
 
-// 创建MMKV实例
-const mmkv = new MMKV();
-
-// MMKV存储适配器
-const mmkvStorage = {
+const persistStorage = {
   setItem: (key: string, value: string) => {
-    mmkv.set(key, value);
-    return Promise.resolve(true);
+    return storageService.setItem(key, value);
   },
   getItem: (key: string) => {
-    const value = mmkv.getString(key);
-    return Promise.resolve(value ?? null);
+    return storageService.getItem(key);
   },
   removeItem: (key: string) => {
-    mmkv.delete(key);
-    return Promise.resolve();
+    return storageService.removeItem(key);
   },
 };
 
-// 合并reducers
 const rootReducer = combineReducers({
   auth: authReducer,
   cart: cartReducer,
@@ -48,20 +37,18 @@ const rootReducer = combineReducers({
   app: appReducer,
 });
 
-// 持久化配置
 const persistConfig = {
   key: 'root',
-  storage: mmkvStorage,
-  whitelist: ['auth', 'cart', 'user'], // 需要持久化的reducers
-  blacklist: ['app'], // 不需要持久化
+  storage: persistStorage,
+  whitelist: ['auth', 'cart', 'user'],
+  blacklist: ['app'],
 };
 
 const persistedReducer = persistReducer(persistConfig, rootReducer);
 
-// 创建Store
 export const store = configureStore({
   reducer: persistedReducer,
-  middleware: (getDefaultMiddleware) =>
+  middleware: getDefaultMiddleware =>
     getDefaultMiddleware({
       serializableCheck: {
         ignoredActions: [FLUSH, REHYDRATE, PAUSE, PERSIST, PURGE, REGISTER],
@@ -69,9 +56,7 @@ export const store = configureStore({
     }),
 });
 
-// 创建Persistor
 export const persistor = persistStore(store);
 
-// 类型导出
 export type RootState = ReturnType<typeof store.getState>;
 export type AppDispatch = typeof store.dispatch;

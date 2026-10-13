@@ -22,6 +22,7 @@ import {ticketApi} from '../../services/api';
 import ticketMock from '../../services/mock/ticketMock';
 import {Button} from '../../components/common';
 import Loading from '../../components/common/Loading';
+import {shareTicket} from '../../utils/shareTicket';
 
 // 导航类型
 type TicketDetailNavigationProp = NativeStackNavigationProp<
@@ -146,6 +147,15 @@ const TicketDetailScreen: React.FC = () => {
     });
   };
 
+  const handleShare = () => {
+    if (!ticket) {
+      return;
+    }
+    shareTicket(ticket.name, ticket.id).catch(error => {
+      console.error('share ticket detail failed', error);
+    });
+  };
+
   const handleRemind = async () => {
     if (!ticket) return;
     setReminderLoading(true);
@@ -215,6 +225,9 @@ const TicketDetailScreen: React.FC = () => {
                 <Text style={styles.hotBadgeText}>HOT</Text>
               </View>
             )}
+            <TouchableOpacity style={styles.shareAction} onPress={handleShare}>
+              <Text style={styles.shareActionText}>分享</Text>
+            </TouchableOpacity>
           </View>
 
           {ticket.subtitle && (
@@ -419,6 +432,19 @@ const styles = StyleSheet.create({
   hotBadgeText: {
     color: Colors.white,
     fontSize: 10,
+    fontWeight: '700',
+  },
+  shareAction: {
+    marginLeft: Spacing.sm,
+    borderWidth: 1,
+    borderColor: Colors.primary[200],
+    borderRadius: BorderRadius.sm,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  shareActionText: {
+    color: Colors.primary[500],
+    fontSize: Typography.caption.fontSize,
     fontWeight: '700',
   },
   subtitle: {

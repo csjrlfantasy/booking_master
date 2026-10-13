@@ -50,6 +50,7 @@ export interface CreateOrderParams {
   sessionId?: string | number;
   items: CreateOrderItem[];
   couponId?: string;
+  userCouponId?: string | number;
   contactName?: string;
   contactPhone?: string;
   contactIdCard?: string;
