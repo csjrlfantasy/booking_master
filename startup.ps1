@@ -1,0 +1,5 @@
+$env:JAVA_HOME = "C:\Program Files\Java\jdk-17"
+$env:PATH = "$env:JAVA_HOME\bin;$env:PATH"
+Set-Location "D:\AIProjects\BookingApi\booking-api"
+Write-Host "Starting Spring Boot application..."
+& "D:\software\apache-maven-3.8.8-bin\apache-maven-3.8.8\bin\mvn.cmd" spring-boot:run "-Dspring-boot.run.profiles=dev" "-Dspring-boot.run.arguments=--server.port=8088"
