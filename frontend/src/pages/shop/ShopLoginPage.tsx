@@ -69,18 +69,19 @@ export function ShopLoginPage() {
 
           <form
             className="space-y-3"
+            data-testid="shop-login-form"
             onSubmit={(event) => {
               event.preventDefault();
               authMutation.mutate();
             }}
           >
-            <input value={username} onChange={(event) => setUsername(event.target.value)} className="h-11 w-full rounded-lg border border-gray-300 px-3 text-sm outline-none focus:border-rose-500 focus:ring-2 focus:ring-rose-100" placeholder="用户名" />
-            <input value={password} onChange={(event) => setPassword(event.target.value)} type="password" className="h-11 w-full rounded-lg border border-gray-300 px-3 text-sm outline-none focus:border-rose-500 focus:ring-2 focus:ring-rose-100" placeholder="密码" />
+            <input value={username} onChange={(event) => setUsername(event.target.value)} className="h-11 w-full rounded-lg border border-gray-300 px-3 text-sm outline-none focus:border-rose-500 focus:ring-2 focus:ring-rose-100" placeholder="用户名" data-testid="shop-username" />
+            <input value={password} onChange={(event) => setPassword(event.target.value)} type="password" className="h-11 w-full rounded-lg border border-gray-300 px-3 text-sm outline-none focus:border-rose-500 focus:ring-2 focus:ring-rose-100" placeholder="密码" data-testid="shop-password" />
             {mode === 'register' ? (
               <input value={phone} onChange={(event) => setPhone(event.target.value)} className="h-11 w-full rounded-lg border border-gray-300 px-3 text-sm outline-none focus:border-rose-500 focus:ring-2 focus:ring-rose-100" placeholder="手机号" />
             ) : null}
 
-            <button type="submit" disabled={authMutation.isPending || !username || !password || (mode === 'register' && !phone)} className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-rose-600 px-4 text-sm font-semibold text-white hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-50">
+            <button type="submit" disabled={authMutation.isPending || !username || !password || (mode === 'register' && !phone)} className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-rose-600 px-4 text-sm font-semibold text-white hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-50" data-testid="shop-login-submit">
               {authMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserRound className="h-4 w-4" />}
               {mode === 'register' ? '注册并登录' : '登录'}
             </button>

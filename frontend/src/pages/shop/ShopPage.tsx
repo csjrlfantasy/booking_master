@@ -37,12 +37,15 @@ import {
   createTicketComment,
   createCustomerOrder,
   deleteCustomerIdentity,
+  getAvailableCoupons,
+  getCouponCenter,
   getCustomerIdentities,
   getCustomerOrderDetail,
   getCustomerOrders,
   getCustomerProfile,
   getFlashSaleTickets,
   getHotTickets,
+  getMyCoupons,
   getShopBanners,
   getShopCategories,
   getShopTicketDetail,
@@ -51,7 +54,10 @@ import {
   getTicketReminder,
   getUpcomingTickets,
   mockPayOrder,
+  receiveCoupon,
   remindTicket,
+  validateCustomerCoupon,
+  type CouponCenterItem,
   type CustomerLoginResponse,
   type CustomerIdentity,
   type CreateCustomerOrderResponse,
@@ -64,6 +70,8 @@ import {
   type ShopSession,
   type ShopTicketListItem,
   type TicketCommentSummary,
+  type UserCouponItem,
+  type ValidatedCoupon,
 } from '@/api/customer';
 import { cn } from '@/utils';
 import { clearCustomerSession, readCustomerSession } from './customerSession';
@@ -81,6 +89,22 @@ type WalletBalances = {
 };
 
 type MainTab = 'home' | 'categories' | 'upcoming' | 'orders' | 'me';
+type ShareTargetKey = 'wechat' | 'qq' | 'weibo' | 'xiaohongshu' | 'douyin' | 'kuaishou' | 'copy';
+
+const shareTargets = [
+  { key: 'wechat', label: '微信', shortLabel: '微', color: 'bg-emerald-500 text-white' },
+  { key: 'qq', label: 'QQ', shortLabel: 'Q', color: 'bg-sky-500 text-white' },
+  { key: 'weibo', label: '微博', shortLabel: '博', color: 'bg-rose-500 text-white' },
+  { key: 'xiaohongshu', label: '小红书', shortLabel: '红', color: 'bg-red-500 text-white' },
+  { key: 'douyin', label: '抖音', shortLabel: '抖', color: 'bg-gray-950 text-white' },
+  { key: 'kuaishou', label: '快手', shortLabel: '快', color: 'bg-orange-500 text-white' },
+  { key: 'copy', label: '复制链接', shortLabel: '链', color: 'bg-white text-gray-900 border border-gray-200' },
+] as const satisfies ReadonlyArray<{
+  key: ShareTargetKey;
+  label: string;
+  shortLabel: string;
+  color: string;
+}>;
 
 const fallbackCategories: ShopCategory[] = [
   { id: 1, name: '演唱会' },
@@ -128,6 +152,29 @@ function availableText(stock?: number) {
   if (stock <= 0) return '已售罄';
   return `余票 ${stock}`;
 }
+
+function couponValueText(coupon: Pick<CouponCenterItem, 'couponType' | 'couponValue'> | Pick<UserCouponItem, 'couponType' | 'couponValue'>) {
+  if (coupon.couponType === 2) {
+    return `${Number(coupon.couponValue ?? 0)}折`;
+  }
+  return `¥${Number(coupon.couponValue ?? 0).toFixed(0)}`;
+}
+
+function couponRequirementText(coupon: Pick<CouponCenterItem, 'minOrderAmount'> | Pick<UserCouponItem, 'minOrderAmount'>) {
+  if (!coupon.minOrderAmount || Number(coupon.minOrderAmount) <= 0) {
+    return '无门槛';
+  }
+  return `满${currency(coupon.minOrderAmount)}可用`;
+}
+
+const shareSchemes: Record<Exclude<ShareTargetKey, 'copy'>, string> = {
+  wechat: 'weixin://',
+  qq: 'mqq://',
+  weibo: 'sinaweibo://',
+  xiaohongshu: 'xhsdiscover://',
+  douyin: 'snssdk1128://',
+  kuaishou: 'kwai://',
+};
 
 function formatCountdown(milliseconds: number) {
   const totalSeconds = Math.max(0, Math.floor(milliseconds / 1000));
@@ -282,6 +329,8 @@ function SectionRail({
   selectedId,
   onSelect,
   empty,
+  gridTestId,
+  emptyTestId,
 }: {
   id?: string;
   title: string;
@@ -289,6 +338,8 @@ function SectionRail({
   selectedId: number | null;
   onSelect: (ticket: ShopTicketListItem) => void;
   empty?: string;
+  gridTestId?: string;
+  emptyTestId?: string;
 }) {
   return (
     <section id={id} className="border-t border-gray-200 bg-white px-4 py-5 md:rounded-lg md:border md:p-6">
@@ -297,13 +348,13 @@ function SectionRail({
         <span className="text-sm text-gray-500">查看全部</span>
       </div>
       {tickets.length > 0 ? (
-        <div className="flex gap-4 overflow-x-auto pb-2">
+        <div className="flex gap-4 overflow-x-auto pb-2" data-testid={gridTestId}>
           {tickets.map((ticket) => (
             <ProductCard key={ticket.id} ticket={ticket} active={ticket.id === selectedId} onClick={() => onSelect(ticket)} />
           ))}
         </div>
       ) : (
-        <div className="rounded-lg bg-gray-50 p-6 text-sm text-gray-500">{empty || '暂无票务'}</div>
+        <div className="rounded-lg bg-gray-50 p-6 text-sm text-gray-500" data-testid={emptyTestId}>{empty || '暂无票务'}</div>
       )}
     </section>
   );
@@ -419,6 +470,7 @@ export function ShopPage() {
   const [commentRating, setCommentRating] = useState(5);
   const [commentContent, setCommentContent] = useState('');
   const [selectedIdentityIds, setSelectedIdentityIds] = useState<Array<number | ''>>(['']);
+  const [selectedCouponId, setSelectedCouponId] = useState<number | null>(null);
 
   const categoriesQuery = useQuery({
     queryKey: ['shop-categories'],
@@ -532,6 +584,18 @@ export function ShopPage() {
     enabled: Boolean(customerToken),
   });
 
+  const couponCenterQuery = useQuery({
+    queryKey: ['coupon-center', customerToken],
+    queryFn: () => getCouponCenter(customerToken, { page: 1, pageSize: 6 }),
+    enabled: Boolean(customerToken),
+  });
+
+  const myCouponsQuery = useQuery({
+    queryKey: ['my-coupons', customerToken],
+    queryFn: () => getMyCoupons(customerToken, { status: 0, page: 1, pageSize: 20 }),
+    enabled: Boolean(customerToken),
+  });
+
   useEffect(() => {
     const profile = profileQuery.data;
     if (!profile) return;
@@ -566,6 +630,71 @@ export function ShopPage() {
     navigate(`/shop/login?returnTo=${encodeURIComponent(location.pathname)}`);
   }
 
+  const currentShareUrl =
+    typeof window === 'undefined'
+      ? `http://127.0.0.1:3000${location.pathname}`
+      : `${window.location.origin}${location.pathname}`;
+
+  const handleShareAction = async (target: ShareTargetKey) => {
+    const shareTitle = detail?.name || '票多星票务';
+    const shareText = `${shareTitle} ${currentShareUrl}`;
+
+    if (navigator.clipboard?.writeText) {
+      try {
+        await navigator.clipboard.writeText(shareText);
+      } catch {
+        // ignore clipboard fallback failures and continue with scheme/web jump
+      }
+    }
+
+    if (target === 'copy') {
+      toast.success('链接已复制，快去分享吧');
+      return;
+    }
+
+    if (target === 'qq') {
+      const qqUrl = `https://connect.qq.com/widget/shareqq/index.html?url=${encodeURIComponent(currentShareUrl)}&title=${encodeURIComponent(shareTitle)}`;
+      window.open(qqUrl, '_blank', 'noopener,noreferrer');
+      toast.success('已打开 QQ 分享页');
+      return;
+    }
+
+    if (target === 'weibo') {
+      const weiboUrl = `https://service.weibo.com/share/share.php?url=${encodeURIComponent(currentShareUrl)}&title=${encodeURIComponent(shareTitle)}`;
+      window.open(weiboUrl, '_blank', 'noopener,noreferrer');
+      toast.success('已打开微博分享页');
+      return;
+    }
+
+    window.location.href = shareSchemes[target];
+    toast.success(`已尝试调起${shareTargets.find((item) => item.key === target)?.label}`);
+  };
+
+  const totalAmount = (selectedPriceLevel?.price ?? 0) * quantity;
+
+  const availableCouponsQuery = useQuery({
+    queryKey: ['available-coupons', customerToken, detail?.id, detail?.categoryId, totalAmount],
+    queryFn: () =>
+      getAvailableCoupons(customerToken, {
+        orderAmount: totalAmount,
+        ticketId: detail?.id,
+        categoryId: detail?.categoryId,
+      }),
+    enabled: Boolean(customerToken) && Boolean(detail?.id) && totalAmount > 0,
+  });
+
+  const couponValidationQuery = useQuery({
+    queryKey: ['coupon-validation', customerToken, selectedCouponId, detail?.id, detail?.categoryId, totalAmount],
+    queryFn: () =>
+      validateCustomerCoupon(customerToken, {
+        userCouponId: selectedCouponId as number,
+        orderAmount: totalAmount,
+        ticketId: detail?.id,
+        categoryId: detail?.categoryId,
+      }),
+    enabled: Boolean(customerToken) && Boolean(selectedCouponId) && totalAmount > 0,
+  });
+
   function handleCustomerAuthExpired(error: any) {
     if (error?.code !== 401) return false;
     clearCustomerSession();
@@ -580,6 +709,35 @@ export function ShopPage() {
     return true;
   }
 
+  useEffect(() => {
+    const availableCoupons = availableCouponsQuery.data ?? [];
+    if (!availableCoupons.length) {
+      setSelectedCouponId(null);
+      return;
+    }
+    if (selectedCouponId && availableCoupons.some((coupon) => coupon.id === selectedCouponId)) {
+      return;
+    }
+    setSelectedCouponId(availableCoupons[0].id);
+  }, [availableCouponsQuery.data, selectedCouponId]);
+
+  const receiveCouponMutation = useMutation({
+    mutationFn: (couponId: number) => {
+      if (!customerToken) throw new Error('请先登录后再领券');
+      return receiveCoupon(customerToken, couponId);
+    },
+    onSuccess: () => {
+      toast.success('优惠券已到账');
+      couponCenterQuery.refetch();
+      myCouponsQuery.refetch();
+      availableCouponsQuery.refetch();
+    },
+    onError: (error: any) => {
+      if (handleCustomerAuthExpired(error)) return;
+      toast.error(error?.message || '领取失败');
+    },
+  });
+
   const orderMutation = useMutation({
     mutationFn: () => {
       if (!customerToken) throw new Error('请先登录客户账号');
@@ -587,6 +745,7 @@ export function ShopPage() {
       return createCustomerOrder(customerToken, {
         ticketId: detail.id,
         sessionId: selectedSession.id,
+        userCouponId: selectedCouponId ?? undefined,
         items: [
           {
             priceLevelId: selectedPriceLevel.id,
@@ -611,6 +770,7 @@ export function ShopPage() {
       detailQuery.refetch();
       ticketsQuery.refetch();
       ordersQuery.refetch();
+      myCouponsQuery.refetch();
     },
     onError: (error: any) => {
       if (handleCustomerAuthExpired(error)) return;
@@ -681,9 +841,11 @@ export function ShopPage() {
     },
   });
 
-  const totalAmount = (selectedPriceLevel?.price ?? 0) * quantity;
   const canBuyTicket = detail?.status === 2;
+  const appliedDiscount = Number(couponValidationQuery.data?.discountAmount ?? 0);
+  const finalPayAmount = Math.max(0, totalAmount - appliedDiscount);
   const selectedAttendeesValid = selectedIdentityIds.length === quantity && selectedIdentityIds.every(Boolean);
+  const couponReady = !selectedCouponId || (couponValidationQuery.data?.usable ?? true);
   const canSubmit =
     canBuyTicket &&
     Boolean(customerToken) &&
@@ -693,7 +855,8 @@ export function ShopPage() {
     maxQuantity > 0 &&
     contactName.trim().length > 0 &&
     contactPhone.trim().length > 0 &&
-    selectedAttendeesValid;
+    selectedAttendeesValid &&
+    couponReady;
 
   const selectTicket = (ticket: ShopTicketListItem) => {
     navigate(`/shop/tickets/${ticket.id}`);
@@ -752,6 +915,7 @@ export function ShopPage() {
     ticketsQuery.refetch();
     ordersQuery.refetch();
     orderDetailQuery.refetch();
+    myCouponsQuery.refetch();
   };
 
   return (
@@ -787,8 +951,13 @@ export function ShopPage() {
           identities={identitiesQuery.data ?? []}
           identityLoading={identitiesQuery.isLoading}
           identityPending={createIdentityMutation.isPending || deleteIdentityMutation.isPending}
+          couponCenter={couponCenterQuery.data?.list ?? []}
+          couponCenterLoading={couponCenterQuery.isLoading}
+          myCoupons={myCouponsQuery.data?.list ?? []}
+          couponPendingId={receiveCouponMutation.isPending ? receiveCouponMutation.variables : null}
           onCreateIdentity={(data) => createIdentityMutation.mutate(data)}
           onDeleteIdentity={(id) => deleteIdentityMutation.mutate(id)}
+          onReceiveCoupon={(couponId) => receiveCouponMutation.mutate(couponId)}
           onOrders={() => setActiveTab('orders')}
           onLogout={logout}
         />
@@ -820,7 +989,7 @@ export function ShopPage() {
             >
               返回首页
             </button>
-            <TicketDetailContent detail={detail} loading={detailQuery.isLoading} />
+            <TicketDetailContent detail={detail} loading={detailQuery.isLoading} shareUrl={currentShareUrl} onShare={handleShareAction} />
             <CommentBox
               summary={commentsQuery.data}
               loading={commentsQuery.isLoading}
@@ -855,11 +1024,19 @@ export function ShopPage() {
               remark={remark}
               setRemark={setRemark}
               totalAmount={totalAmount}
+              appliedDiscount={appliedDiscount}
+              finalPayAmount={finalPayAmount}
               canSubmit={canSubmit}
               canBuyTicket={canBuyTicket}
               identities={identitiesQuery.data ?? []}
               selectedIdentityIds={selectedIdentityIds}
               setSelectedIdentityIds={setSelectedIdentityIds}
+              coupons={availableCouponsQuery.data ?? []}
+              couponsLoading={availableCouponsQuery.isLoading}
+              selectedCouponId={selectedCouponId}
+              setSelectedCouponId={setSelectedCouponId}
+              couponValidation={couponValidationQuery.data}
+              couponValidationLoading={couponValidationQuery.isLoading}
               submitPending={orderMutation.isPending}
               onSubmit={() => orderMutation.mutate()}
               latestOrder={latestOrder}
@@ -921,7 +1098,7 @@ export function ShopPage() {
 
           <div className="mx-auto max-w-7xl px-0 md:px-4 md:pb-8">
             <div className="space-y-4">
-              <SectionRail title={selectedCategoryId ? '分类结果' : '必看演出'} tickets={tickets} selectedId={selectedTicketId} onSelect={selectTicket} />
+              <SectionRail title={selectedCategoryId ? '分类结果' : '必看演出'} tickets={tickets} selectedId={selectedTicketId} onSelect={selectTicket} gridTestId="shop-ticket-grid" emptyTestId="shop-empty-result" />
               <SectionRail title="秒杀特价票" tickets={flashSaleTickets} selectedId={selectedTicketId} onSelect={selectTicket} empty="暂无秒杀特价票" />
               <SectionRail id="shop-upcoming" title="即将开售" tickets={upcomingTickets} selectedId={selectedTicketId} onSelect={selectTicket} empty="暂无即将开售票务" />
               <SectionRail title="热门推荐" tickets={hotTickets} selectedId={selectedTicketId} onSelect={selectTicket} />
@@ -1005,8 +1182,9 @@ function Header({
             onChange={(event) => setKeyword(event.target.value)}
             className="min-w-0 flex-1 bg-transparent text-sm outline-none"
             placeholder="搜索明星、演出、体育赛事"
+            data-testid="shop-search-input"
           />
-          <button type="submit" className="w-20 bg-rose-600 text-sm font-bold text-white hover:bg-rose-700">
+          <button type="submit" className="w-20 bg-rose-600 text-sm font-bold text-white hover:bg-rose-700" data-testid="shop-search-submit">
             搜索
           </button>
         </form>
@@ -1043,8 +1221,13 @@ function ProfileView({
   identities,
   identityLoading,
   identityPending,
+  couponCenter,
+  couponCenterLoading,
+  myCoupons,
+  couponPendingId,
   onCreateIdentity,
   onDeleteIdentity,
+  onReceiveCoupon,
   onOrders,
   onLogout,
 }: {
@@ -1056,8 +1239,13 @@ function ProfileView({
   identities: CustomerIdentity[];
   identityLoading: boolean;
   identityPending: boolean;
+  couponCenter: CouponCenterItem[];
+  couponCenterLoading: boolean;
+  myCoupons: UserCouponItem[];
+  couponPendingId: number | null | undefined;
   onCreateIdentity: (data: { realName: string; idCardNo: string; phone?: string }) => void;
   onDeleteIdentity: (id: number) => void;
+  onReceiveCoupon: (couponId: number) => void;
   onOrders: () => void;
   onLogout: () => void;
 }) {
@@ -1146,6 +1334,14 @@ function ProfileView({
         </div>
       </div>
 
+      <CouponCenterSection
+        couponCenter={couponCenter}
+        couponCenterLoading={couponCenterLoading}
+        myCoupons={myCoupons}
+        couponPendingId={couponPendingId}
+        onReceiveCoupon={onReceiveCoupon}
+      />
+
       <div className="mt-4 grid gap-3 md:grid-cols-2">
         <button
           type="button"
@@ -1174,60 +1370,279 @@ function ProfileView({
   );
 }
 
-function TicketDetailContent({ detail, loading }: { detail?: any; loading: boolean }) {
+function CouponCenterSection({
+  couponCenter,
+  couponCenterLoading,
+  myCoupons,
+  couponPendingId,
+  onReceiveCoupon,
+}: {
+  couponCenter: CouponCenterItem[];
+  couponCenterLoading: boolean;
+  myCoupons: UserCouponItem[];
+  couponPendingId: number | null | undefined;
+  onReceiveCoupon: (couponId: number) => void;
+}) {
+  return (
+    <div className="mt-4 grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
+      <section className="rounded-lg border border-gray-200 bg-white p-5">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-extrabold text-gray-950">优惠券中心</h2>
+            <p className="mt-1 text-sm text-gray-500">后台发放的券可以在这里领取，买票时自动参与抵扣。</p>
+          </div>
+          {couponCenterLoading ? <Loader2 className="h-4 w-4 animate-spin text-rose-600" /> : null}
+        </div>
+        <div className="mt-4 grid gap-3">
+          {couponCenter.length === 0 ? (
+            <div className="rounded-lg bg-gray-50 p-4 text-sm text-gray-500">当前没有可领取的优惠券。</div>
+          ) : (
+            couponCenter.map((coupon) => (
+              <div key={coupon.couponId} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-rose-100 bg-rose-50/50 p-4">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="rounded-md bg-white px-2 py-1 text-xs font-semibold text-rose-600">{couponValueText(coupon)}</span>
+                    <span className="truncate text-base font-bold text-gray-950">{coupon.couponName}</span>
+                  </div>
+                  <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm text-gray-500">
+                    <span>{couponRequirementText(coupon)}</span>
+                    <span>剩余 {coupon.remainCount ?? 0}</span>
+                    <span>每人限领 {coupon.perLimit ?? 1} 张</span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  disabled={Boolean(coupon.received) || couponPendingId === coupon.couponId}
+                  onClick={() => onReceiveCoupon(coupon.couponId)}
+                  className="inline-flex h-10 items-center justify-center rounded-lg bg-rose-600 px-4 text-sm font-semibold text-white hover:bg-rose-700 disabled:cursor-not-allowed disabled:bg-gray-300"
+                >
+                  {couponPendingId === coupon.couponId ? '领取中...' : coupon.received ? '已领取' : '立即领取'}
+                </button>
+              </div>
+            ))
+          )}
+        </div>
+      </section>
+
+      <section className="rounded-lg border border-gray-200 bg-white p-5">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-extrabold text-gray-950">我的优惠券</h2>
+            <p className="mt-1 text-sm text-gray-500">这里展示当前未使用的券，下单页会自动显示可用券。</p>
+          </div>
+          <span className="rounded-md bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-700">{myCoupons.length} 张可用</span>
+        </div>
+        <div className="mt-4 grid gap-3">
+          {myCoupons.length === 0 ? (
+            <div className="rounded-lg bg-gray-50 p-4 text-sm text-gray-500">还没有可用优惠券，先去左侧领几张。</div>
+          ) : (
+            myCoupons.slice(0, 6).map((coupon) => (
+              <div key={coupon.id} className="rounded-lg border border-gray-100 bg-gray-50 p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="text-base font-bold text-gray-950">{coupon.couponName}</div>
+                    <div className="mt-1 text-sm text-gray-500">{couponRequirementText(coupon)}</div>
+                  </div>
+                  <span className="rounded-md bg-white px-2 py-1 text-sm font-bold text-rose-600">{couponValueText(coupon)}</span>
+                </div>
+                <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500">
+                  <span>{coupon.statusText || '未使用'}</span>
+                  <span>有效期至 {coupon.validEndTime ? coupon.validEndTime.replace('T', ' ').slice(0, 16) : '长期有效'}</span>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function CouponPicker({
+  token,
+  coupons,
+  couponsLoading,
+  selectedCouponId,
+  setSelectedCouponId,
+  validation,
+  validationLoading,
+  totalAmount,
+  onLogin,
+}: {
+  token: string;
+  coupons: UserCouponItem[];
+  couponsLoading: boolean;
+  selectedCouponId: number | null;
+  setSelectedCouponId: (id: number | null) => void;
+  validation?: ValidatedCoupon;
+  validationLoading: boolean;
+  totalAmount: number;
+  onLogin: () => void;
+}) {
+  return (
+    <div className="rounded-lg border border-amber-100 bg-amber-50/60 p-3">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <div className="text-sm font-bold text-gray-900">优惠券</div>
+          <div className="text-xs text-gray-500">订单满额时自动展示可用券。</div>
+        </div>
+        <span className="rounded-md bg-white px-2 py-1 text-xs font-semibold text-amber-700">{coupons.length} 张可用</span>
+      </div>
+      {!token ? (
+        <button type="button" onClick={onLogin} className="mt-3 inline-flex h-10 items-center justify-center rounded-lg bg-white px-4 text-sm font-semibold text-rose-600 hover:bg-rose-50">
+          登录后领券
+        </button>
+      ) : couponsLoading ? (
+        <div className="mt-3 flex items-center gap-2 text-sm text-gray-500">
+          <Loader2 className="h-4 w-4 animate-spin text-rose-600" />
+          正在加载可用优惠券...
+        </div>
+      ) : coupons.length === 0 ? (
+        <div className="mt-3 rounded-md bg-white p-3 text-sm text-gray-500">当前订单暂无可用优惠券，可去“我的”页面先领取。</div>
+      ) : (
+        <>
+          <select
+            value={selectedCouponId ?? ''}
+            onChange={(event) => setSelectedCouponId(event.target.value ? Number(event.target.value) : null)}
+            className="mt-3 h-10 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm outline-none focus:border-rose-500 focus:ring-2 focus:ring-rose-100"
+          >
+            {coupons.map((coupon) => (
+              <option key={coupon.id} value={coupon.id}>
+                {coupon.couponName} · {couponValueText(coupon)} · {couponRequirementText(coupon)}
+              </option>
+            ))}
+          </select>
+          <div className="mt-3 rounded-md bg-white p-3 text-sm text-gray-600">
+            <div className="flex items-center justify-between">
+              <span>订单金额</span>
+              <span className="font-semibold text-gray-950">{currency(totalAmount)}</span>
+            </div>
+            <div className="mt-2 flex items-center justify-between">
+              <span>预计优惠</span>
+              <span className="font-semibold text-rose-600">
+                {validationLoading ? '计算中...' : `-${currency(validation?.discountAmount ?? 0)}`}
+              </span>
+            </div>
+            {validation?.usable === false ? (
+              <div className="mt-2 text-xs text-amber-700">{validation.reason || '当前优惠券不可用'}</div>
+            ) : null}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function SharePanel({
+  title,
+  shareUrl,
+  onShare,
+}: {
+  title: string;
+  shareUrl: string;
+  onShare: (target: ShareTargetKey) => void;
+}) {
+  return (
+    <section className="rounded-lg border border-gray-200 bg-white p-5">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <h3 className="text-base font-extrabold text-gray-950">分享演出</h3>
+          <p className="mt-1 text-sm text-gray-500">分享到微信、QQ、微博、小红书、抖音、快手，或直接复制链接。</p>
+        </div>
+        <span className="max-w-[220px] truncate text-xs text-gray-400">{shareUrl}</span>
+      </div>
+      <div className="mt-4 grid grid-cols-4 gap-3 md:grid-cols-7">
+        {shareTargets.map((target) => (
+          <button
+            key={target.key}
+            type="button"
+            onClick={() => onShare(target.key)}
+            title={`分享到${target.label}`}
+            className="grid justify-items-center gap-2 rounded-lg border border-gray-100 bg-gray-50 px-2 py-3 hover:border-rose-200 hover:bg-rose-50"
+          >
+            <span className={cn('grid h-10 w-10 place-items-center rounded-full text-sm font-extrabold', target.color)}>
+              {target.shortLabel}
+            </span>
+            <span className="text-xs font-medium text-gray-600">{target.label}</span>
+          </button>
+        ))}
+      </div>
+      <div className="mt-3 text-xs text-gray-400">{title}</div>
+    </section>
+  );
+}
+
+function TicketDetailContent({
+  detail,
+  loading,
+  shareUrl,
+  onShare,
+}: {
+  detail?: any;
+  loading: boolean;
+  shareUrl: string;
+  onShare: (target: ShareTargetKey) => void;
+}) {
   if (loading) {
     return (
-      <section className="grid min-h-[420px] place-items-center rounded-lg border border-gray-200 bg-white">
-        <Loader2 className="h-7 w-7 animate-spin text-rose-600" />
-      </section>
+      <div className="space-y-4">
+        <section className="grid min-h-[420px] place-items-center rounded-lg border border-gray-200 bg-white">
+          <Loader2 className="h-7 w-7 animate-spin text-rose-600" />
+        </section>
+      </div>
     );
   }
 
   if (!detail) {
     return (
-      <section className="rounded-lg border border-gray-200 bg-white p-8 text-sm text-gray-500">
-        没有找到这张票务，请返回首页重新选择。
-      </section>
+      <div className="space-y-4">
+        <section className="rounded-lg border border-gray-200 bg-white p-8 text-sm text-gray-500">
+          没有找到这张票务，请返回首页重新选择。
+        </section>
+      </div>
     );
   }
 
   return (
-    <section className="overflow-hidden rounded-lg border border-gray-200 bg-white">
-      <div className="grid items-start gap-0 lg:grid-cols-[minmax(260px,360px)_1fr]">
-        <div className="bg-gray-100 p-4">
-          {detail.poster ? (
-            <img src={detail.poster} alt={detail.name} className="aspect-[4/5] max-h-[520px] w-full rounded-md object-cover" />
-          ) : (
-            <div className="grid aspect-[4/5] max-h-[520px] place-items-center rounded-md bg-rose-50 text-rose-500">
-              <Ticket className="h-14 w-14" />
+    <div className="space-y-4">
+      <section className="overflow-hidden rounded-lg border border-gray-200 bg-white">
+        <div className="grid items-start gap-0 lg:grid-cols-[minmax(260px,360px)_1fr]">
+          <div className="bg-gray-100 p-4">
+            {detail.poster ? (
+              <img src={detail.poster} alt={detail.name} className="aspect-[4/5] max-h-[520px] w-full rounded-md object-cover" />
+            ) : (
+              <div className="grid aspect-[4/5] max-h-[520px] place-items-center rounded-md bg-rose-50 text-rose-500">
+                <Ticket className="h-14 w-14" />
+              </div>
+            )}
+          </div>
+          <div className="min-w-0 p-5 md:p-7">
+            <span className="rounded-md bg-rose-50 px-2 py-1 text-xs font-medium text-rose-700">{statusName(detail.status)}</span>
+            <h1 className="mt-4 text-2xl font-extrabold leading-tight md:text-4xl">{detail.name}</h1>
+            {detail.subName ? <p className="mt-2 text-base text-gray-600">{detail.subName}</p> : null}
+            <div className="mt-5 grid gap-3 text-sm text-gray-700 md:grid-cols-2">
+              <Info label="城市/场馆" value={detail.venueName || '待定场馆'} />
+              <Info label="演出时间" value={`${detail.showDate || '日期待定'} ${detail.showTime || ''}`} />
+              <Info label="起售价格" value={priceText(detail.minimumPrice)} />
+              <Info label="余票" value={availableText(detail.availableStock)} />
             </div>
-          )}
-        </div>
-        <div className="min-w-0 p-5 md:p-7">
-          <span className="rounded-md bg-rose-50 px-2 py-1 text-xs font-medium text-rose-700">{statusName(detail.status)}</span>
-          <h1 className="mt-4 text-2xl font-extrabold leading-tight md:text-4xl">{detail.name}</h1>
-          {detail.subName ? <p className="mt-2 text-base text-gray-600">{detail.subName}</p> : null}
-          <div className="mt-5 grid gap-3 text-sm text-gray-700 md:grid-cols-2">
-            <Info label="城市/场馆" value={detail.venueName || '待定场馆'} />
-            <Info label="演出时间" value={`${detail.showDate || '日期待定'} ${detail.showTime || ''}`} />
-            <Info label="起售价格" value={priceText(detail.minimumPrice)} />
-            <Info label="余票" value={availableText(detail.availableStock)} />
-          </div>
-          <div className="mt-6 border-t border-gray-200 pt-5">
-            <h2 className="text-lg font-bold">项目详情</h2>
-            <p className="mt-3 whitespace-pre-line text-sm leading-7 text-gray-600">
-              {detail.description || '暂无详细介绍。'}
-            </p>
-          </div>
-          <div className="mt-6 border-t border-gray-200 pt-5">
-            <h2 className="text-lg font-bold">购票须知</h2>
-            <p className="mt-3 whitespace-pre-line text-sm leading-7 text-gray-600">
-              {detail.notice || '请通过票多星官方渠道购票，平台不卖黄牛票。'}
-            </p>
+            <div className="mt-6 border-t border-gray-200 pt-5">
+              <h2 className="text-lg font-bold">项目详情</h2>
+              <p className="mt-3 whitespace-pre-line text-sm leading-7 text-gray-600">
+                {detail.description || '暂无详细介绍。'}
+              </p>
+            </div>
+            <div className="mt-6 border-t border-gray-200 pt-5">
+              <h2 className="text-lg font-bold">购票须知</h2>
+              <p className="mt-3 whitespace-pre-line text-sm leading-7 text-gray-600">
+                {detail.notice || '请通过票多星官方渠道购票，平台不卖黄牛票。'}
+              </p>
+            </div>
           </div>
         </div>
-      </div>
-    </section>
+      </section>
+      <SharePanel title={detail.name} shareUrl={shareUrl} onShare={onShare} />
+    </div>
   );
 }
 
@@ -1498,11 +1913,19 @@ function CheckoutPanel({
   remark,
   setRemark,
   totalAmount,
+  appliedDiscount,
+  finalPayAmount,
   canSubmit,
   canBuyTicket,
   identities,
   selectedIdentityIds,
   setSelectedIdentityIds,
+  coupons,
+  couponsLoading,
+  selectedCouponId,
+  setSelectedCouponId,
+  couponValidation,
+  couponValidationLoading,
   submitPending,
   onSubmit,
   latestOrder,
@@ -1534,11 +1957,19 @@ function CheckoutPanel({
   remark: string;
   setRemark: (value: string) => void;
   totalAmount: number;
+  appliedDiscount: number;
+  finalPayAmount: number;
   canSubmit: boolean;
   canBuyTicket: boolean;
   identities: CustomerIdentity[];
   selectedIdentityIds: Array<number | ''>;
   setSelectedIdentityIds: (value: Array<number | ''> | ((current: Array<number | ''>) => Array<number | ''>)) => void;
+  coupons: UserCouponItem[];
+  couponsLoading: boolean;
+  selectedCouponId: number | null;
+  setSelectedCouponId: (id: number | null) => void;
+  couponValidation?: ValidatedCoupon;
+  couponValidationLoading: boolean;
   submitPending: boolean;
   onSubmit: () => void;
   latestOrder: CreateCustomerOrderResponse | null;
@@ -1671,11 +2102,32 @@ function CheckoutPanel({
           <input value={contactPhone} onChange={(event) => setContactPhone(event.target.value)} className="h-10 w-full rounded-lg border border-gray-300 px-3 text-sm outline-none focus:border-rose-500 focus:ring-2 focus:ring-rose-100" placeholder="联系电话" />
           <textarea value={remark} onChange={(event) => setRemark(event.target.value)} className="min-h-20 w-full resize-none rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-rose-500 focus:ring-2 focus:ring-rose-100" placeholder="备注" />
         </div>
+        <CouponPicker
+          token={customerToken}
+          coupons={coupons}
+          couponsLoading={couponsLoading}
+          selectedCouponId={selectedCouponId}
+          setSelectedCouponId={setSelectedCouponId}
+          validation={couponValidation}
+          validationLoading={couponValidationLoading}
+          totalAmount={totalAmount}
+          onLogin={onLogin}
+        />
       </div>
 
-      <div className="mt-5 flex items-center justify-between border-t border-gray-200 pt-4">
-        <span className="text-sm text-gray-500">合计</span>
-        <span className="text-2xl font-extrabold text-orange-600">{currency(totalAmount)}</span>
+      <div className="mt-5 space-y-2 border-t border-gray-200 pt-4">
+        <div className="flex items-center justify-between text-sm text-gray-500">
+          <span>票面金额</span>
+          <span>{currency(totalAmount)}</span>
+        </div>
+        <div className="flex items-center justify-between text-sm text-gray-500">
+          <span>优惠券抵扣</span>
+          <span className="font-semibold text-rose-600">-{currency(appliedDiscount)}</span>
+        </div>
+        <div className="flex items-center justify-between">
+          <span className="text-sm text-gray-500">合计</span>
+          <span className="text-2xl font-extrabold text-orange-600">{currency(finalPayAmount)}</span>
+        </div>
       </div>
       {!customerToken ? (
         <button type="button" onClick={onLogin} className="mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-rose-600 px-4 text-sm font-semibold text-white hover:bg-rose-700">

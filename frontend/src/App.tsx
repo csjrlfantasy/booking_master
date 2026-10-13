@@ -16,6 +16,7 @@ import { TicketDetailPage } from './pages/ticket/TicketDetailPage';
 import { TicketCreatePage } from './pages/ticket/TicketCreatePage';
 import { TicketEditPage } from './pages/ticket/TicketEditPage';
 import { BannerListPage } from './pages/banner/BannerListPage';
+import { AdminCouponListPage } from './pages/coupon/AdminCouponListPage';
 import { FlashSaleListPage } from './pages/flash/FlashSaleListPage';
 import { StatsPage } from './pages/stats/StatsPage';
 import { ShopPage } from './pages/shop/ShopPage';
@@ -88,6 +89,7 @@ function App() {
         <Route path="tickets/:id/edit" element={<TicketEditPage />} />
         <Route path="banners" element={<BannerListPage />} />
         <Route path="flash-sales" element={<FlashSaleListPage />} />
+        <Route path="coupons" element={<AdminCouponListPage />} />
         
         {/* 数据统计 */}
         <Route path="stats" element={<StatsPage />} />

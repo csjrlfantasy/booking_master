@@ -188,7 +188,7 @@ export function TicketListPage() {
           </div>
         )}
         <div className="overflow-x-auto">
-          <table className="table">
+          <div data-testid="admin-ticket-table"><table className="table">
             <thead>
               <tr>
                 <th>
@@ -350,7 +350,7 @@ export function TicketListPage() {
                 ))
               )}
             </tbody>
-          </table>
+          </table></div>
         </div>
 
         {data && data.total > 0 && (

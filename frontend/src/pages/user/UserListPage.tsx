@@ -115,14 +115,14 @@ export function UserListPage() {
   };
 
   return (
-    <div>
+    <div data-testid="admin-user-page">
       {/* 页面标题 */}
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">用户管理</h1>
           <p className="text-gray-600 mt-1">管理平台所有用户</p>
         </div>
-        <Link to="/users/new" className="btn-primary">
+        <Link to="/users/new" className="btn-primary" data-testid="admin-user-create">
           <Plus className="w-4 h-4 mr-2" />
           添加用户
         </Link>
@@ -141,6 +141,7 @@ export function UserListPage() {
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="搜索用户名、手机号、昵称..."
                 className="input pl-10"
+                data-testid="admin-user-search"
               />
             </div>
           </div>
@@ -183,7 +184,7 @@ export function UserListPage() {
       {/* 用户列表 */}
       <div className="card overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="table">
+          <div data-testid="admin-user-table"><table className="table">
             <thead>
               <tr>
                 <th>用户ID</th>
@@ -294,7 +295,7 @@ export function UserListPage() {
                 ))
               )}
             </tbody>
-          </table>
+          </table></div>
         </div>
 
         {/* 分页 */}

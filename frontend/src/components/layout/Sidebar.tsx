@@ -9,6 +9,7 @@ import {
   BarChart3,
   Image,
   Flame,
+  Gift,
   ChevronLeft,
   ChevronRight,
   Settings,
@@ -65,6 +66,12 @@ const menuItems: MenuItem[] = [
     path: '/flash-sales',
   },
   {
+    id: 'coupons',
+    label: '优惠券管理',
+    icon: <Gift className="w-5 h-5" />,
+    path: '/coupons',
+  },
+  {
     id: 'stats',
     label: '数据统计',
     icon: <BarChart3 className="w-5 h-5" />,
@@ -82,33 +89,26 @@ export function Sidebar({ collapsed, onCollapsed }: SidebarProps) {
         collapsed ? 'w-16' : 'w-64'
       )}
     >
-      {/* Logo区域 */}
-      <div className="h-16 flex items-center px-4 border-b border-gray-800">
-        {!collapsed && (
+      <div className="flex h-16 items-center border-b border-gray-800 px-4">
+        {!collapsed ? (
           <span className="text-lg font-semibold">票多星管理后台</span>
-        )}
-        {collapsed && (
-          <span className="text-xl font-bold mx-auto">票</span>
+        ) : (
+          <span className="mx-auto text-xl font-bold">票</span>
         )}
       </div>
 
-      {/* 菜单 */}
       <nav className="p-2">
         <ul className="space-y-1">
           {menuItems.map((item) => {
-            const isActive = item.path === '/'
-              ? location.pathname === '/'
-              : location.pathname.startsWith(item.path);
+            const isActive = item.path === '/' ? location.pathname === '/' : location.pathname.startsWith(item.path);
 
             return (
               <li key={item.id}>
                 <NavLink
                   to={item.path}
                   className={cn(
-                    'flex items-center px-3 py-2 rounded-lg transition-colors',
-                    isActive
-                      ? 'bg-primary-600 text-white'
-                      : 'text-gray-300 hover:bg-gray-800 hover:text-white'
+                    'flex items-center rounded-lg px-3 py-2 transition-colors',
+                    isActive ? 'bg-primary-600 text-white' : 'text-gray-300 hover:bg-gray-800 hover:text-white'
                   )}
                   title={collapsed ? item.label : undefined}
                 >
@@ -116,11 +116,9 @@ export function Sidebar({ collapsed, onCollapsed }: SidebarProps) {
                   {!collapsed && (
                     <>
                       <span className="ml-3 flex-1">{item.label}</span>
-                      {item.badge && (
-                        <span className="ml-2 px-2 py-0.5 text-xs bg-red-500 rounded-full">
-                          {item.badge}
-                        </span>
-                      )}
+                      {item.badge ? (
+                        <span className="ml-2 rounded-full bg-red-500 px-2 py-0.5 text-xs">{item.badge}</span>
+                      ) : null}
                     </>
                   )}
                 </NavLink>
@@ -130,32 +128,24 @@ export function Sidebar({ collapsed, onCollapsed }: SidebarProps) {
         </ul>
       </nav>
 
-      {/* 折叠按钮 */}
       <button
         onClick={() => onCollapsed(!collapsed)}
         className={cn(
-          'absolute bottom-20 w-6 h-6 rounded-full bg-gray-800 text-gray-300',
-          'flex items-center justify-center hover:bg-gray-700 transition-colors',
+          'absolute bottom-20 flex h-6 w-6 items-center justify-center rounded-full bg-gray-800 text-gray-300 transition-colors hover:bg-gray-700',
           collapsed ? 'left-1/2 -translate-x-1/2' : 'right-0 mr-2'
         )}
       >
-        {collapsed ? (
-          <ChevronRight className="w-4 h-4" />
-        ) : (
-          <ChevronLeft className="w-4 h-4" />
-        )}
+        {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
       </button>
 
-      {/* 设置入口 */}
       <div className="absolute bottom-4 left-0 right-0 px-2">
         <div
           className={cn(
-            'flex items-center px-3 py-2 rounded-lg text-gray-300 hover:bg-gray-800 hover:text-white',
-            'transition-colors cursor-pointer'
+            'flex cursor-pointer items-center rounded-lg px-3 py-2 text-gray-300 transition-colors hover:bg-gray-800 hover:text-white'
           )}
         >
-          <Settings className="w-5 h-5" />
-          {!collapsed && <span className="ml-3">系统设置</span>}
+          <Settings className="h-5 w-5" />
+          {!collapsed ? <span className="ml-3">系统设置</span> : null}
         </div>
       </div>
     </aside>

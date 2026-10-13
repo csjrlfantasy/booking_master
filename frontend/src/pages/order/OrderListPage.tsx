@@ -246,7 +246,7 @@ export function OrderListPage() {
           </div>
         )}
         <div className="overflow-x-auto">
-          <table className="table">
+          <div data-testid="admin-order-table"><table className="table">
             <thead>
               <tr>
                 <th className="w-10">
@@ -382,7 +382,7 @@ export function OrderListPage() {
                 ))
               )}
             </tbody>
-          </table>
+          </table></div>
         </div>
 
         {/* 分页 */}

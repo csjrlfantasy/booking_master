@@ -88,6 +88,55 @@ export interface AdminFlashSaleRequest {
   status?: number;
 }
 
+export interface AdminCoupon {
+  id: number;
+  name: string;
+  couponType: number;
+  couponTypeText?: string;
+  couponValue: number;
+  minOrderAmount?: number;
+  totalCount: number;
+  remainCount: number;
+  perLimit: number;
+  receiveType?: number;
+  validityType?: number;
+  applicableScope?: number;
+  status: number;
+  statusText?: string;
+  receiveStartTime?: string;
+  receiveEndTime?: string;
+  createdAt?: string;
+}
+
+export interface AdminCouponRequest {
+  name: string;
+  couponType: number;
+  couponValue: number;
+  minOrderAmount?: number;
+  maxDiscountAmount?: number;
+  totalCount: number;
+  remainCount?: number;
+  perLimit: number;
+  receiveType: number;
+  validityType: number;
+  validStartDate?: string;
+  validEndDate?: string;
+  validDays?: number;
+  applicableScope: number;
+  applicableTickets?: string;
+  applicableCategories?: string;
+  description?: string;
+  notice?: string;
+  receiveStartTime?: string;
+  receiveEndTime?: string;
+  status?: number;
+}
+
+export interface AdminCouponIssueRequest {
+  userIds: number[];
+  issueMode?: string;
+}
+
 type RawTicket = Record<string, any>;
 
 function statusTextOf(status?: number) {
@@ -203,6 +252,35 @@ export async function createAdminFlashSale(data: AdminFlashSaleRequest): Promise
 
 export async function updateAdminFlashSaleStatus(id: number, status: number): Promise<void> {
   return put<void>(`/admin/flash-sales/${id}/status`, { status });
+}
+
+export async function getAdminCoupons(params: {
+  keyword?: string;
+  status?: number;
+  page?: number;
+  pageSize?: number;
+}): Promise<PageResult<AdminCoupon>> {
+  return get<PageResult<AdminCoupon>>('/admin/coupons', params);
+}
+
+export async function getAdminCouponDetail(id: number): Promise<AdminCouponRequest> {
+  return get<AdminCouponRequest>(`/admin/coupons/${id}`);
+}
+
+export async function createAdminCoupon(data: AdminCouponRequest): Promise<number> {
+  return post<number>('/admin/coupons', data);
+}
+
+export async function updateAdminCoupon(id: number, data: AdminCouponRequest): Promise<void> {
+  return put<void>(`/admin/coupons/${id}`, data);
+}
+
+export async function updateAdminCouponStatus(id: number, status: number): Promise<void> {
+  return put<void>(`/admin/coupons/${id}/status`, { status });
+}
+
+export async function issueAdminCoupon(id: number, data: AdminCouponIssueRequest): Promise<void> {
+  return post<void>(`/admin/coupons/${id}/issue`, data);
 }
 
 export async function getAdminTicketList(params: TicketListParams): Promise<PageResult<Ticket>> {

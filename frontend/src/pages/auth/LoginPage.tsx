@@ -77,7 +77,7 @@ export function LoginPage() {
 
         {/* 登录表单 */}
         <div className="card p-8">
-          <form onSubmit={handleSubmit}>
+          <form onSubmit={handleSubmit} data-testid="admin-login-form">
             <h2 className="text-xl font-semibold text-gray-900 mb-6">管理员登录</h2>
 
             {/* 错误提示 */}
@@ -99,6 +99,7 @@ export function LoginPage() {
                 className="input"
                 placeholder="请输入用户名"
                 autoComplete="username"
+                data-testid="admin-username"
               />
             </div>
 
@@ -114,6 +115,7 @@ export function LoginPage() {
                   className={cn('input', error && 'input-error')}
                   placeholder="请输入密码"
                   autoComplete="current-password"
+                  data-testid="admin-password"
                 />
                 <button
                   type="button"
@@ -134,6 +136,7 @@ export function LoginPage() {
               type="submit"
               disabled={loading}
               className="btn-primary w-full"
+              data-testid="admin-login-submit"
             >
               {loading ? '登录中...' : '登录'}
             </button>

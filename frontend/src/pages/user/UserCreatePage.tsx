@@ -79,7 +79,7 @@ export function UserCreatePage() {
       </button>
 
       <div className="card p-6 max-w-2xl">
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleSubmit} data-testid="admin-user-create-form">
           <h2 className="text-xl font-semibold text-gray-900 mb-6">添加用户</h2>
 
           {error && (
@@ -154,7 +154,7 @@ export function UserCreatePage() {
           </div>
 
           <div className="flex gap-4 mt-6">
-            <button type="submit" disabled={loading} className="btn-primary">
+            <button type="submit" disabled={loading} className="btn-primary" data-testid="admin-user-create-submit">
               <Save className="w-4 h-4 mr-2" />
               {loading ? '创建中...' : '创建'}
             </button>

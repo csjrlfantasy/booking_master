@@ -56,6 +56,7 @@ export interface ShopSession {
 
 export interface ShopTicketDetail {
   id: number;
+  categoryId?: number;
   venueId?: number;
   name: string;
   subName?: string;
@@ -109,6 +110,7 @@ export interface CustomerIdentityPayload {
 export interface CreateCustomerOrderRequest {
   ticketId: number;
   sessionId: number;
+  userCouponId?: number;
   items: Array<{
     priceLevelId: number;
     priceLevelName?: string;
@@ -129,6 +131,7 @@ export interface CreateCustomerOrderRequest {
 export interface CreateCustomerOrderResponse {
   orderId: number;
   orderNo: string;
+  userCouponId?: number;
   totalAmount: number;
   discountAmount?: number;
   payAmount: number;
@@ -217,6 +220,51 @@ export interface TicketReminderState {
   reminded: boolean;
 }
 
+export interface CouponCenterItem {
+  couponId: number;
+  couponName: string;
+  couponType: number;
+  couponValue: number;
+  minOrderAmount?: number;
+  remainCount?: number;
+  perLimit?: number;
+  receiveStartTime?: string;
+  receiveEndTime?: string;
+  received?: boolean;
+}
+
+export interface UserCouponItem {
+  id: number;
+  userId?: number;
+  couponId: number;
+  couponName: string;
+  couponType: number;
+  couponTypeText?: string;
+  couponValue: number;
+  minOrderAmount?: number;
+  description?: string;
+  validStartTime?: string;
+  validEndTime?: string;
+  remainingDays?: number;
+  status: number;
+  statusText?: string;
+  receiveTime?: string;
+  useTime?: string;
+  source?: string;
+}
+
+export interface ValidatedCoupon {
+  usable: boolean;
+  userCouponId: number;
+  couponId?: number;
+  couponName?: string;
+  couponType?: number;
+  couponValue?: number;
+  discountAmount?: number;
+  minOrderAmount?: number;
+  reason?: string;
+}
+
 export function getShopTickets(params: {
   categoryId?: number;
   keyword?: string;
@@ -283,6 +331,84 @@ export function remindTicket(token: string, ticketId: number) {
       Authorization: `Bearer ${token}`,
     },
   });
+}
+
+export function getCouponCenter(token: string, params?: { page?: number; pageSize?: number }) {
+  return get<PageResult<CouponCenterItem>>(
+    '/coupons/center',
+    {
+      page: params?.page ?? 1,
+      pageSize: params?.pageSize ?? 10,
+    },
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    }
+  );
+}
+
+export function getMyCoupons(token: string, params?: { status?: number; page?: number; pageSize?: number }) {
+  return get<PageResult<UserCouponItem>>(
+    '/coupons/list',
+    {
+      status: params?.status,
+      page: params?.page ?? 1,
+      pageSize: params?.pageSize ?? 20,
+    },
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    }
+  );
+}
+
+export function receiveCoupon(token: string, couponId: number) {
+  return post<number>(
+    '/coupons/receive',
+    undefined,
+    {
+      params: { couponId },
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    }
+  );
+}
+
+export function getAvailableCoupons(
+  token: string,
+  params: { orderAmount?: number; ticketId?: number; categoryId?: number }
+) {
+  return get<UserCouponItem[]>(
+    '/coupons',
+    {
+      orderAmount: params.orderAmount,
+      ticketId: params.ticketId,
+      categoryId: params.categoryId,
+    },
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    }
+  );
+}
+
+export function validateCustomerCoupon(
+  token: string,
+  data: { userCouponId: number; orderAmount: number; ticketId?: number; categoryId?: number }
+) {
+  return post<ValidatedCoupon>(
+    '/coupons/validate',
+    data,
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    }
+  );
 }
 
 export function loginCustomer(username: string, password: string) {
