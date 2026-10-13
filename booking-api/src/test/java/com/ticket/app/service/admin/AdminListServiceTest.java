@@ -12,6 +12,7 @@ import com.ticket.app.repository.admin.AdminOrderRepository;
 import com.ticket.app.repository.admin.AdminUserRepository;
 import com.ticket.app.repository.order.OrderRepository;
 import com.ticket.app.repository.user.UserRepository;
+import com.ticket.app.service.coupon.CouponService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -39,6 +40,9 @@ class AdminListServiceTest {
 
     @Mock
     private OrderRepository orderRepository;
+
+    @Mock
+    private CouponService couponService;
 
     @Test
     void userListShouldUseBuiltInPaginationWhenNoXmlMapperExists() {
@@ -74,7 +78,11 @@ class AdminListServiceTest {
 
     @Test
     void orderListShouldUseBuiltInPaginationWhenNoXmlMapperExists() {
-        AdminOrderServiceImpl service = new AdminOrderServiceImpl(adminOrderRepository, orderRepository, userRepository);
+        AdminOrderServiceImpl service = new AdminOrderServiceImpl(
+                adminOrderRepository,
+                orderRepository,
+                userRepository,
+                couponService);
         Order order = new Order();
         order.setId(1L);
         order.setOrderNo("ORDER-001");

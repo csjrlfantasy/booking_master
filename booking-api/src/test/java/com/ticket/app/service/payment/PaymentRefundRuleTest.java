@@ -5,6 +5,7 @@ import com.ticket.app.controller.payment.dto.RefundResultResponse;
 import com.ticket.app.entity.Order;
 import com.ticket.app.repository.order.OrderRepository;
 import com.ticket.app.repository.user.UserRepository;
+import com.ticket.app.service.coupon.CouponService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -18,6 +19,7 @@ import java.time.LocalTime;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -29,11 +31,14 @@ class PaymentRefundRuleTest {
     @Mock
     private UserRepository userRepository;
 
+    @Mock
+    private CouponService couponService;
+
     private PaymentServiceImpl paymentService;
 
     @BeforeEach
     void setUp() {
-        paymentService = new PaymentServiceImpl(orderRepository, userRepository);
+        paymentService = new PaymentServiceImpl(orderRepository, userRepository, couponService);
     }
 
     @Test
@@ -71,6 +76,18 @@ class PaymentRefundRuleTest {
         RefundResultResponse response = paymentService.applyRefund(7L, request());
 
         assertEquals(new BigDecimal("100.00"), response.getRefundAmount());
+    }
+
+    @Test
+    void userRefundShouldReturnBoundCouponWhenOrderUsedCoupon() {
+        Order order = createPaidOrder(LocalDate.now().plusDays(10), LocalTime.now());
+        order.setId(88L);
+        order.setUserCouponId(901L);
+        when(orderRepository.selectOne(any())).thenReturn(order);
+
+        paymentService.applyRefund(7L, request());
+
+        verify(couponService).returnCoupon(7L, 88L, true);
     }
 
     private RefundRequest request() {

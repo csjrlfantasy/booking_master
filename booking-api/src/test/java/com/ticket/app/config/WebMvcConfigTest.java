@@ -11,4 +11,9 @@ class WebMvcConfigTest {
         assertTrue(WebMvcConfig.jwtExcludePathPatterns().contains("/api/uploads/**"));
         assertTrue(WebMvcConfig.jwtExcludePathPatterns().contains("/uploads/**"));
     }
+
+    @Test
+    void jwtExcludePathPatternsShouldAllowTestSupportWithinTheApiContextPath() {
+        assertTrue(WebMvcConfig.jwtExcludePathPatterns().contains("/test-support/**"));
+    }
 }

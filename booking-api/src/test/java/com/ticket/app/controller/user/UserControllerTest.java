@@ -8,6 +8,7 @@ import com.ticket.app.controller.user.dto.UserLoginRequest;
 import com.ticket.app.controller.user.dto.UserLoginResponse;
 import com.ticket.app.controller.user.dto.UserRegisterRequest;
 import com.ticket.app.controller.user.dto.UserTokenResponse;
+import com.ticket.app.service.user.UserIdentityService;
 import com.ticket.app.service.user.UserService;
 import jakarta.servlet.http.HttpServletRequest;
 import org.junit.jupiter.api.BeforeEach;
@@ -43,13 +44,16 @@ public class UserControllerTest {
     private JwtUtils jwtUtils;
 
     @Mock
+    private UserIdentityService userIdentityService;
+
+    @Mock
     private HttpServletRequest httpRequest;
 
     private UserController userController;
 
     @BeforeEach
     void setUp() {
-        userController = new UserController(userService, jwtUtils);
+        userController = new UserController(userService, userIdentityService, jwtUtils);
     }
 
     // ==================== 用户注册测试 ====================
