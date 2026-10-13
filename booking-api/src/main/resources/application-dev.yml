@@ -54,12 +54,12 @@ payment:
   callback:
     secret-key: ${PAYMENT_CALLBACK_SECRET_KEY}
 
-# Swagger配置
+# Swagger配置（dev 环境默认开启，可用 SWAGGER_ENABLED=false 关闭）
 springdoc:
   api-docs:
-    enabled: false
+    enabled: ${SWAGGER_ENABLED:true}
   swagger-ui:
-    enabled: false
+    enabled: ${SWAGGER_ENABLED:true}
     path: /swagger-ui.html
 
 # 日志级别

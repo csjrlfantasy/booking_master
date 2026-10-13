@@ -1,9 +1,15 @@
 # 票务App后端API接口文档
 
 ## 项目信息
-- 版本：1.0.0
-- 更新日期：2026-04-16
+- 版本：1.0.1
+- 更新日期：2026-10-13
 - 基础路径：`/api`
+
+> **以在线 Swagger 为准**：本文档为概览参考。实时的、从代码生成的接口定义见
+> `http://127.0.0.1:8088/api/swagger-ui/index.html`（机读 JSON：`/api/v3/api-docs`；
+> dev 环境默认开启，可用环境变量 `SWAGGER_ENABLED=false` 关闭）。
+> 2026-10-13 已按 Swagger 实测修正购物车/分类/优惠券路径，并补充下单 `attendees`
+> 强制规则与 `payment/mock-pay` 模拟支付端点。
 
 ---
 
@@ -230,6 +236,17 @@
 - **是否需要认证**: 签名验证
 - **注意**: 此接口供支付系统回调使用，需要携带签名参数
 
+### 2.7 模拟支付（开发/教学用）
+- **接口路径**: `POST /payment/mock-pay`
+- **是否需要认证**: 是 (Bearer Token)
+- **请求参数**: 与"创建支付"相同（`orderNo`、`amount`、`payChannel` 必填）
+- **说明**: 不触发真实支付渠道，直接把订单标记为支付成功，用于本地开发与自动化测试中走通"下单 → 支付 → 已支付"链路
+
+### 2.8 订单支付成功回调
+- **接口路径**: `POST /orders/pay/callback`
+- **查询参数**: `orderNo`、`amount`、`timestamp`、`sign`（必填），`payChannel`、`tradeNo`（选填）
+- **注意**: 供支付系统回调使用
+
 ---
 
 ## 订单管理
@@ -249,7 +266,11 @@
             "quantity": 2,
             "unitPrice": 299.00,
             "seatId": 1,
-            "seatNo": "A1"
+            "seatNo": "A1",
+            "attendees": [
+                { "realName": "张三", "idCardNo": "110101199001011234" },
+                { "realName": "李四", "idCardNo": "110101199002022345" }
+            ]
         }
     ],
     "addressId": 1,
@@ -263,6 +284,10 @@
     "pointsDiscount": 0.00
 }
 ```
+- **注意（实测强制规则）**:
+  - `items[].attendees` 观演人列表必填，**每张票一个观演人**（数量必须与 `quantity` 一致，否则返回业务错误码 100600）
+  - `attendees[].idCardNo` 必须通过身份证校验位验证
+  - 观演人也可先通过 `POST /user/identities` 维护常用观演人，再传 `identityId`
 - **响应示例**:
 ```json
 {
@@ -316,7 +341,7 @@
 - **是否需要认证**: 否
 
 ### 4.4 获取票务分类
-- **接口路径**: `GET /category`
+- **接口路径**: `GET /categories`
 - **是否需要认证**: 否
 
 ---
@@ -330,33 +355,93 @@
 ### 5.2 添加购物车
 - **接口路径**: `POST /cart/add`
 - **是否需要认证**: 是 (Bearer Token)
+- **请求参数**:
+```json
+{
+    "ticketId": 1,
+    "sessionId": 1,
+    "priceLevelId": 1,
+    "priceLevelName": "VIP区",
+    "quantity": 2,
+    "unitPrice": 299.00
+}
+```
+（以上字段均必填）
 
-### 5.3 更新购物车项
-- **接口路径**: `PUT /cart/update`
+### 5.3 更新购物车项数量
+- **接口路径**: `PUT /cart/quantity`
 - **是否需要认证**: 是 (Bearer Token)
+- **请求参数**:
+```json
+{
+    "cartId": 1,
+    "quantity": 3
+}
+```
+（两字段均必填）
 
 ### 5.4 删除购物车项
-- **接口路径**: `DELETE /cart/{cartId}`
+- **接口路径**: `DELETE /cart/{id}`
 - **是否需要认证**: 是 (Bearer Token)
 
 ### 5.5 清空购物车
-- **接口路径**: `DELETE /cart/clear`
+- **接口路径**: `DELETE /cart`
+- **是否需要认证**: 是 (Bearer Token)
+
+### 5.6 批量删除购物车项
+- **接口路径**: `DELETE /cart/batch`
+- **是否需要认证**: 是 (Bearer Token)
+- **请求参数**: 请求体为购物车项 ID 数组，如 `[1, 2, 3]`
+
+### 5.7 获取购物车数量
+- **接口路径**: `GET /cart/count`
 - **是否需要认证**: 是 (Bearer Token)
 
 ---
 
 ## 优惠券
 
-### 6.1 获取用户优惠券
-- **接口路径**: `GET /coupon`
+### 6.1 获取可用优惠券
+- **接口路径**: `GET /coupons`
 - **是否需要认证**: 是 (Bearer Token)
+- **查询参数**: `orderAmount`、`ticketId`、`categoryId`（均选填，用于过滤可用券）
 
 ### 6.2 领取优惠券
-- **接口路径**: `POST /coupon/claim/{couponId}`
+- **接口路径**: `POST /coupons/receive`
 - **是否需要认证**: 是 (Bearer Token)
+- **查询参数**: `couponId`（必填）
 
 ### 6.3 验证优惠券
-- **接口路径**: `POST /coupon/validate`
+- **接口路径**: `POST /coupons/validate`
+- **是否需要认证**: 是 (Bearer Token)
+- **请求参数**:
+```json
+{
+    "userCouponId": 301,
+    "orderAmount": 299.00,
+    "ticketId": 1,
+    "categoryId": 1
+}
+```
+（`userCouponId`、`orderAmount` 必填）
+
+### 6.4 领券中心
+- **接口路径**: `GET /coupons/center`
+- **是否需要认证**: 是 (Bearer Token)
+- **查询参数**: `page`、`pageSize`（选填）
+
+### 6.5 我的优惠券列表
+- **接口路径**: `GET /coupons/list`
+- **是否需要认证**: 是 (Bearer Token)
+- **查询参数**: `status`、`page`、`pageSize`（选填）
+
+### 6.6 使用优惠券
+- **接口路径**: `POST /coupons/use`
+- **是否需要认证**: 是 (Bearer Token)
+- **请求参数**: `{ "userCouponId": 301, "orderId": 123456 }`（`userCouponId` 必填）
+
+### 6.7 优惠券详情
+- **接口路径**: `GET /coupons/{id}`
 - **是否需要认证**: 是 (Bearer Token)
 
 ---
