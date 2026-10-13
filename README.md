@@ -1,206 +1,125 @@
-# 票务App后端服务 (Booking API)
+# 票多星票务平台
 
-## 项目介绍
+票多星是一套票务教学项目，包含 Spring Boot 后端、React Web 客户端/管理端，以及 React Native Android 客户端。
 
-票务App后端服务，采用Spring Boot 3.2 + MyBatis Plus架构，提供用户、票务、订单、支付等核心功能。
+## 默认访问地址
+
+| 服务 | 地址 |
+| --- | --- |
+| 客户端首页 | http://127.0.0.1:3000/shop |
+| 客户端登录 | http://127.0.0.1:3000/shop/login |
+| 管理端登录 | http://127.0.0.1:3000/login |
+| 后端 API 根地址 | http://127.0.0.1:8088/api |
+| 前端代理 API | http://127.0.0.1:3000/api |
+| 健康检查 | http://127.0.0.1:8088/api/actuator/health |
+| Swagger UI | http://127.0.0.1:8088/api/swagger-ui.html |
+| OpenAPI JSON | http://127.0.0.1:8088/api/v3/api-docs |
+
+浏览器访问页面时使用 `3000` 端口；直接调用后端接口时使用 `8088/api`。Web 前端会把 `/api` 请求代理到后端。
+
+## CentOS 服务器
+
+当前生产环境入口：
+
+| 服务 | 地址 |
+| --- | --- |
+| 客户端首页 | http://154.12.20.250/shop |
+| 客户端登录 | http://154.12.20.250/shop/login |
+| 管理端登录 | http://154.12.20.250/login |
+| 后端 API 根地址 | http://154.12.20.250/api |
+| 健康检查 | http://154.12.20.250/api/actuator/health |
+
+生产环境已关闭 Swagger。项目通过 Docker Compose 运行，API 只绑定服务器本机的 `127.0.0.1:8088`，由 Nginx 统一提供 Web 页面和 `/api` 反向代理。
+
+服务器目录：
+
+- 部署入口：`/opt/ticketmore`
+- 实际数据目录：`/mnt/data/ticketmore`
+- Web 静态文件：`/www/wwwroot/ticketmore`
+- Nginx 配置：`/www/server/panel/vhost/nginx/ticketmore.conf`
+- 环境密钥：`/opt/ticketmore/.env`，不得提交到 Git
+
+常用运维命令：
+
+```bash
+cd /opt/ticketmore
+docker compose ps
+docker compose logs --tail=200 api
+docker compose logs --tail=200 db
+docker compose up -d
+docker compose restart api
+```
+
+更新前应先备份 `/opt/ticketmore/.env`、`/opt/ticketmore/uploads` 和 MySQL 数据。数据库容器未暴露公网端口，不要为了管理方便直接开放 `3306`。
+
+## 一键启动
+
+环境要求：
+
+- JDK 17（脚本优先使用 `C:\Program Files\Java\jdk-17`）
+- Maven 3.8+
+- Node.js 18+
+- MySQL 8.0+
+- 数据库名 `ticket_booking`
+
+确认 MySQL 和 Redis 已启动。首次运行 `start-all.ps1` 会自动创建一个不提交到 Git 的 `.env` 文件，并生成本地 JWT 和支付回调密钥；如果本地 MySQL 的 `root` 用户设置了密码，请在 `.env` 中填写 `DB_PASSWORD`。然后在项目根目录双击：
+
+```text
+start-all.bat
+```
+
+或在 PowerShell 中运行：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\start-all.ps1
+```
+
+脚本会执行以下操作：
+
+1. 强制使用 JDK 17，并重新打包后端，避免运行过期 JAR 或旧依赖。
+2. 启动后端并等待健康检查通过。
+3. 检查 Web 前端依赖并启动前端。
+4. 把日志和进程号写入 `logs` 目录。
+
+本地启动失败时，脚本会在报错中附带后端的最后日志。不要把 `.env` 上传或提交到仓库。
+
+默认只启动 Web 前后端。需要同时启动 Android Metro 时运行：
+
+```powershell
+.\start-all.ps1 -IncludeMetro
+```
+
+## 分别启动
+
+只启动后端：
+
+```text
+scripts\start-backend-jdk17.cmd
+```
+
+只启动前端：
+
+```text
+scripts\start-frontend-web.cmd
+```
+
+## 数据库初始化
+
+首次运行时依次执行 `init_database.sql`、用户、场馆、分类、票务、订单、优惠券、购物车 DDL，最后按需导入 `init_data.sql`。所有初始化脚本统一使用数据库 `ticket_booking` 和 `utf8mb4` 字符集。开发库已有旧表时，应用启动阶段还会补齐项目新增的兼容字段。
+
+## 故障排查
+
+启动失败时优先查看：
+
+- `logs/backend.out.log`
+- `logs/backend.err.log`
+- `logs/frontend.out.log`
+- `logs/frontend.err.log`
+
+后端代码或依赖修改后无需手工删除旧 JAR；新版一键脚本每次都会重新打包。不要再使用仓库根目录中早期遗留的 `start.bat`、`startup.ps1` 等实验脚本作为标准启动入口。
 
 ## 技术栈
 
-| 技术 | 版本 | 说明 |
-|------|------|------|
-| Spring Boot | 3.2.5 | 核心框架 |
-| Spring Cloud | 2023.0.1 | 微服务框架 |
-| Java | 17 | 运行环境 |
-| MyBatis Plus | 3.5.6 | ORM框架 |
-| MySQL | 8.0+ | 主数据库 |
-| Redis | 7.x | 缓存 |
-| JWT | 0.12.5 | 认证 |
-| Swagger | 2.8.0 | API文档 |
-
-## 项目结构
-
-```
-D:\AIProjects\BookingApi
-├── pom.xml                          # 父POM
-├── booking-common/                  # 公共模块
-│   ├── pom.xml
-│   └── src/main/java/com/ticket/app/common/
-│       ├── Result.java              # 统一响应
-│       ├── ResultCode.java          # 响应码
-│       ├── PageResult.java          # 分页结果
-│       ├── exception/               # 异常定义
-│       └── util/                    # 工具类
-├── booking-api/                     # 主应用模块
-│   ├── pom.xml
-│   └── src/main/
-│       ├── java/com/ticket/app/
-│       │   ├── BookingApiApplication.java  # 启动类
-│       │   ├── controller/         # 控制器
-│       │   ├── service/           # 业务层
-│       │   ├── repository/        # 数据访问层
-│       │   ├── entity/            # 实体类
-│       │   └── config/            # 配置类
-│       └── resources/
-│           ├── application.yml    # 主配置
-│           └── application-dev.yml # 开发配置
-└── scripts/
-    └── db/                         # 数据库脚本
-        ├── 01_user_ddl.sql        # 用户表
-        ├── 02_venue_ddl.sql       # 场馆表
-        ├── 03_ticket_ddl.sql      # 票务表
-        ├── 04_order_ddl.sql       # 订单表
-        ├── 05_coupon_ddl.sql      # 优惠券表
-        ├── init_data.sql          # 初始数据
-        └── init_database.sql      # 数据库初始化
-```
-
-## 快速开始
-
-### 1. 环境要求
-
-- JDK 17+
-- Maven 3.8+
-- MySQL 8.0+
-- Redis 7.x
-
-### 2. 初始化数据库
-
-```bash
-# 1. 创建数据库并导入表结构
-mysql -u root -p < scripts/db/init_database.sql
-
-# 或逐个执行SQL文件
-mysql -u root -p booking_db < scripts/db/01_user_ddl.sql
-mysql -u root -p booking_db < scripts/db/02_venue_ddl.sql
-# ... 其他DDL文件
-```
-
-### 3. 配置修改
-
-修改 `booking-api/src/main/resources/application-dev.yml` 中的数据库和Redis配置：
-
-```yaml
-spring:
-  datasource:
-    url: jdbc:mysql://localhost:3306/booking_db
-    username: root
-    password: your_password
-  
-  data:
-    redis:
-      host: 127.0.0.1
-      port: 6379
-```
-
-### 4. 编译运行
-
-```bash
-# 编译项目
-mvn clean install
-
-# 启动服务
-cd booking-api
-mvn spring-boot:run
-```
-
-### 5. 访问接口文档
-
-- Swagger UI: http://localhost:8080/api/swagger-ui.html
-- OpenAPI JSON: http://localhost:8080/api/v3/api-docs
-
-## 分层架构
-
-```
-┌─────────────────────────────────────────┐
-│           Controller Layer              │
-│    (参数校验、路由、日志、鉴权)            │
-├─────────────────────────────────────────┤
-│            Service Layer                │
-│       (业务逻辑、事务、缓存)              │
-├─────────────────────────────────────────┤
-│          Repository Layer               │
-│      (数据访问、SQL优化)                 │
-├─────────────────────────────────────────┤
-│            Common Layer                 │
-│    (工具类、异常、常量、枚举)             │
-└─────────────────────────────────────────┘
-```
-
-## API规范
-
-### 统一响应格式
-
-```json
-{
-  "code": 0,
-  "message": "success",
-  "data": {},
-  "timestamp": 1709980800000,
-  "requestId": "abc123"
-}
-```
-
-### 分页响应格式
-
-```json
-{
-  "code": 0,
-  "message": "success",
-  "data": {
-    "list": [],
-    "pageNum": 1,
-    "pageSize": 10,
-    "total": 100,
-    "pages": 10
-  }
-}
-```
-
-### 错误码规范
-
-| 错误码 | 说明 |
-|--------|------|
-| 0 | 成功 |
-| 1001xx | 用户模块错误 |
-| 1002xx | 票务模块错误 |
-| 1003xx | 订单模块错误 |
-| 1004xx | 支付模块错误 |
-| 2001xx | 系统错误 |
-
-## 开发规范
-
-### 代码风格
-
-- 遵循阿里巴巴Java开发规范
-- 使用Lombok简化代码
-- 使用MapStruct进行对象映射
-- 接口必须添加Swagger注解
-
-### 命名规范
-
-| 类型 | 命名规范 | 示例 |
-|------|----------|------|
-| 包名 | 小写+下划线 | com.ticket.app.controller |
-| 类名 | 大驼峰 | UserController |
-| 方法名 | 小驼峰 | getUserById |
-| 常量 | 全大写+下划线 | MAX_RETRY_COUNT |
-| 数据库表 | 小写+下划线 | user_address |
-| 数据库字段 | 小写+下划线 | created_at |
-
-### 分支管理
-
-- `main` - 主分支
-- `develop` - 开发分支
-- `feature/*` - 功能分支
-- `hotfix/*` - 热修复分支
-
-## 注意事项
-
-1. 所有配置文件中的敏感信息不要提交到版本库
-2. 生产环境使用密钥管理服务存储敏感配置
-3. 定期更新依赖版本，修复安全漏洞
-4. 使用`git hooks`进行代码提交前的检查
-
-## 许可证
-
-MIT License
+- 后端：Java 17、Spring Boot 3.2.5、MyBatis Plus、MySQL
+- Web：React、TypeScript、Vite
+- Android：React Native
