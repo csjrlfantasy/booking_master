@@ -1,9 +1,11 @@
 -- ================================================
+
+SET NAMES utf8mb4;
 -- 票务App数据库 - 优惠券模块 DDL
 -- 创建时间: 2026-04-09
 -- ================================================
 
-USE `booking_db`;
+USE `ticket_booking`;
 
 -- 优惠券表
 CREATE TABLE IF NOT EXISTS `coupon` (

@@ -1,10 +1,12 @@
 -- ================================================
+
+SET NAMES utf8mb4;
 -- 票务App数据库 - 购物车模块 DDL
 -- 创建时间: 2026-04-28
 -- Sprint 3: 新增购物车功能
 -- ================================================
 
-USE `booking_db`;
+USE `ticket_booking`;
 
 -- 购物车表
 CREATE TABLE IF NOT EXISTS `cart` (

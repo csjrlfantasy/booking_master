@@ -1,9 +1,11 @@
 -- ================================================
+
+SET NAMES utf8mb4;
 -- 票务App数据库 - 场馆模块 DDL
 -- 创建时间: 2026-04-09
 -- ================================================
 
-USE `booking_db`;
+USE `ticket_booking`;
 
 -- 场馆表
 CREATE TABLE IF NOT EXISTS `venue` (

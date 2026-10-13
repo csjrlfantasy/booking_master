@@ -1,14 +1,17 @@
 -- ================================================
+
+SET NAMES utf8mb4;
 -- 票务App数据库 - 分类模块 DDL
 -- 创建时间: 2026-04-11
 -- ================================================
 
-USE `booking_db`;
+USE `ticket_booking`;
 
 -- 分类表
 CREATE TABLE IF NOT EXISTS `category` (
     `id` INT NOT NULL AUTO_INCREMENT COMMENT '分类ID',
     `name` VARCHAR(50) NOT NULL COMMENT '分类名称',
+    `english_name` VARCHAR(100) DEFAULT NULL COMMENT '英文名称',
     `icon` VARCHAR(255) DEFAULT NULL COMMENT '分类图标',
     `description` VARCHAR(255) DEFAULT NULL COMMENT '分类描述',
     `type` TINYINT NOT NULL DEFAULT 1 COMMENT '分类类型: 1-票务分类, 2-场馆分类',

@@ -1,4 +1,6 @@
 -- ================================================
+
+SET NAMES utf8mb4;
 -- 票务App数据库 - 初始数据
 -- 创建时间: 2026-04-09
 -- ================================================
@@ -27,7 +29,7 @@ INSERT INTO `venue` (`id`, `name`, `english_name`, `category_id`, `category_name
 -- 票务初始数据 (示例)
 DELETE FROM `ticket`;
 INSERT INTO `ticket` (`id`, `name`, `sub_name`, `category_id`, `category_name`, `venue_id`, `venue_name`, `poster`, `description`, `show_time_type`, `show_start_date`, `show_end_date`, `show_start_time`, `duration`, `age_limit`, `minimum_price`, `maximum_price`, `total_stock`, `available_stock`, `book_start_time`, `book_end_time`, `is_hot`, `is_recommend`, `status`, `view_count`, `sale_count`, `sort_order`, `tags`) VALUES
-(1, '周杰伦2026世界巡回演唱会', '上海站', 1, '演唱会', 1, '梅赛德斯奔驰文化中心', 'https://cdn.example.com/ticket/1.jpg', '周杰伦2026世界巡回演唱会上海站门票', 1, '2026-05-01', '2026-05-03', '19:30', 180, '1.2米以下儿童谢绝入场', 380.00, 1980.00, 10000, 8500, '2026-01-01 00:00:00', '2026-04-30 23:59:59', 1, 1, 2, 5000, 1500, '["演唱会", "热门", "周杰伦"]'),
+(1, '周杰伦2026世界巡回演唱会', '上海站', 1, '演唱会', 1, '梅赛德斯奔驰文化中心', 'https://cdn.example.com/ticket/1.jpg', '周杰伦2026世界巡回演唱会上海站门票', 1, '2026-05-01', '2026-05-03', '19:30', 180, '1.2米以下儿童谢绝入场', 380.00, 1980.00, 10000, 8500, '2026-01-01 00:00:00', '2026-04-30 23:59:59', 1, 1, 2, 5000, 1500, 1, '["演唱会", "热门", "周杰伦"]'),
 (2, '2026维也纳新年音乐会', NULL, 2, '音乐会', 2, '国家大剧院', 'https://cdn.example.com/ticket/2.jpg', '世界最著名的新年音乐会', 1, '2026-01-01', '2026-01-01', '19:30', 150, '1米以下儿童谢绝入场', 280.00, 1680.00, 2000, 1800, '2025-12-01 00:00:00', '2025-12-31 23:59:59', 1, 1, 2, 3000, 200, 2, '["音乐会", "经典"]'),
 (3, '经典芭蕾舞《天鹅湖》', '上海站', 4, '舞蹈/芭蕾', 1, '梅赛德斯奔驰文化中心', 'https://cdn.example.com/ticket/3.jpg', '俄罗斯国家芭蕾舞团经典演出', 1, '2026-06-15', '2026-06-15', '19:30', 120, '1米以下儿童谢绝入场', 180.00, 880.00, 3000, 2800, '2026-03-01 00:00:00', '2026-06-14 23:59:59', 0, 1, 2, 1500, 200, 3, '["芭蕾", "经典"]');
 
@@ -56,8 +58,8 @@ INSERT INTO `ticket_session` (`id`, `ticket_id`, `session_no`, `session_name`, `
 
 -- 优惠券初始数据 (示例)
 DELETE FROM `coupon`;
-INSERT INTO `coupon` (`id`, `name`, `coupon_type`, `coupon_value`, `min_order_amount`, `max_discount_amount`, `total_count`, `remain_count`, `per_limit`, `receive_type`, `validity_type`, `valid_start_date`, `valid_end_date`, `valid_days`, `applicable_scope`, `description`, `status`) VALUES
-(1, '新人满减券', 1, 50.00, 200.00, NULL, 10000, 9500, 1, 2, 1, '2026-01-01', '2026-12-31', NULL, 1, '新用户专享优惠券', 1),
-(2, 'VIP9折券', 2, 0.90, 500.00, 100.00, 5000, 4500, 1, 1, 2, NULL, NULL, 30, 1, 'VIP用户专享折扣券', 1),
-(3, '立减30元券', 3, 30.00, 100.00, NULL, 20000, 18000, 1, 1, 1, '2026-01-01', '2026-06-30', NULL, 1, '全场可用立减券', 1),
-(4, '演唱会满减券', 1, 100.00, 500.00, NULL, 5000, 4500, 1, 1, 1, '2026-01-01', '2026-12-31', NULL, 3, NULL, '演唱会专享满减券', 1);
+INSERT INTO `coupon` (`id`, `name`, `coupon_type`, `coupon_value`, `min_order_amount`, `max_discount_amount`, `total_count`, `remain_count`, `per_limit`, `receive_type`, `validity_type`, `valid_start_date`, `valid_end_date`, `valid_days`, `applicable_scope`, `applicable_categories`, `description`, `status`) VALUES
+(1, '新人满减券', 1, 50.00, 200.00, NULL, 10000, 9500, 1, 2, 1, '2026-01-01', '2026-12-31', NULL, 1, NULL, '新用户专享优惠券', 1),
+(2, 'VIP9折券', 2, 0.90, 500.00, 100.00, 5000, 4500, 1, 1, 2, NULL, NULL, 30, 1, NULL, 'VIP用户专享折扣券', 1),
+(3, '立减30元券', 3, 30.00, 100.00, NULL, 20000, 18000, 1, 1, 1, '2026-01-01', '2026-06-30', NULL, 1, NULL, '全场可用立减券', 1),
+(4, '演唱会满减券', 1, 100.00, 500.00, NULL, 5000, 4500, 1, 1, 1, '2026-01-01', '2026-12-31', NULL, 3, '[1]', '演唱会专享满减券', 1);

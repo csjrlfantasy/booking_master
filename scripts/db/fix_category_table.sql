@@ -1,4 +1,6 @@
 -- 修复分类表结构 - 添加缺失的字段
+SET NAMES utf8mb4;
+
 USE `ticket_booking`;
 
 -- 检查并添加 type 字段
