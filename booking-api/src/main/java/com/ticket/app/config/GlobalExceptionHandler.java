@@ -22,6 +22,8 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.NoHandlerFoundException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
+import org.springframework.web.server.ResponseStatusException;
+import org.springframework.http.ResponseEntity;
 
 import java.time.format.DateTimeParseException;
 import java.util.stream.Collectors;
@@ -190,6 +192,17 @@ public class GlobalExceptionHandler {
     /**
      * 处理未知异常
      */
+    /**
+     * 处理 ResponseStatusException（如测试支持接口的密钥校验失败 403）：
+     * 保留原始状态码，不让它被兜底成 500——403 和 500 含义完全不同，必须区分开。
+     */
+    @ExceptionHandler(ResponseStatusException.class)
+    public ResponseEntity<Result<?>> handleResponseStatusException(ResponseStatusException e) {
+        String reason = e.getReason() == null ? "request rejected" : e.getReason();
+        log.warn("请求被拒绝: {} - {}", e.getStatusCode(), reason);
+        return ResponseEntity.status(e.getStatusCode()).body(Result.fail(100403, reason));
+    }
+
     @ExceptionHandler(Exception.class)
     @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
     public Result<?> handleException(Exception e, HttpServletRequest request) {

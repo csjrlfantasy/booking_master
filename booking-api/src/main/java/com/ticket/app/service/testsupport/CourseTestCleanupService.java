@@ -48,6 +48,33 @@ public class CourseTestCleanupService {
     }
 
     @Transactional(rollbackFor = Exception.class)
+    public CourseCleanupResponse cleanupTicket(String runId, Long ticketId) {
+        if (ticketId == null || ticketId <= 0) {
+            throw new IllegalArgumentException("ticketId must be positive");
+        }
+        return cleanup(new CourseCleanupRequest(
+                runId, List.of(), List.of(), List.of(ticketId), List.of()));
+    }
+
+    @Transactional(rollbackFor = Exception.class)
+    public CourseCleanupResponse cleanupOrder(String runId, Long orderId) {
+        if (orderId == null || orderId <= 0) {
+            throw new IllegalArgumentException("orderId must be positive");
+        }
+        return cleanup(new CourseCleanupRequest(
+                runId, List.of(), List.of(orderId), List.of(), List.of()));
+    }
+
+    @Transactional(rollbackFor = Exception.class)
+    public CourseCleanupResponse cleanupCoupon(String runId, Long couponId) {
+        if (couponId == null || couponId <= 0) {
+            throw new IllegalArgumentException("couponId must be positive");
+        }
+        return cleanup(new CourseCleanupRequest(
+                runId, List.of(), List.of(), List.of(), List.of(couponId)));
+    }
+
+    @Transactional(rollbackFor = Exception.class)
     public CourseCleanupResponse cleanup(CourseCleanupRequest request) {
         if (request == null || request.runId() == null
                 || !RUN_ID.matcher(request.runId()).matches()) {

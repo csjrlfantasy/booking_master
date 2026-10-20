@@ -54,6 +54,33 @@ public class CourseTestSupportController {
         return Result.success(cleanupService.cleanupUser(runId, userId));
     }
 
+    @DeleteMapping("/tickets/{ticketId}")
+    public Result<CourseCleanupResponse> deleteTicket(
+            @RequestHeader("X-Course-Test-Key") String suppliedKey,
+            @PathVariable Long ticketId,
+            @RequestParam String runId) {
+        requireValidKey(suppliedKey);
+        return Result.success(cleanupService.cleanupTicket(runId, ticketId));
+    }
+
+    @DeleteMapping("/orders/{orderId}")
+    public Result<CourseCleanupResponse> deleteOrder(
+            @RequestHeader("X-Course-Test-Key") String suppliedKey,
+            @PathVariable Long orderId,
+            @RequestParam String runId) {
+        requireValidKey(suppliedKey);
+        return Result.success(cleanupService.cleanupOrder(runId, orderId));
+    }
+
+    @DeleteMapping("/coupons/{couponId}")
+    public Result<CourseCleanupResponse> deleteCoupon(
+            @RequestHeader("X-Course-Test-Key") String suppliedKey,
+            @PathVariable Long couponId,
+            @RequestParam String runId) {
+        requireValidKey(suppliedKey);
+        return Result.success(cleanupService.cleanupCoupon(runId, couponId));
+    }
+
     private void requireValidKey(String suppliedKey) {
         if (!MessageDigest.isEqual(
                 expectedKey.getBytes(StandardCharsets.UTF_8),
