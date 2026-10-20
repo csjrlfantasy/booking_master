@@ -150,6 +150,12 @@ def _attach_failed_evidence(item, teardown_report):
         b64 = base64.b64encode(screenshot.read_bytes()).decode()
         extra_items.append(extras.image(b64, name="失败现场截图"))
 
+    # 操作录屏（webm）同样 base64 内嵌，报告里直接播放，不用下载。
+    # 只挂失败用例的录屏（retain-on-failure），报告体积可控。
+    for video in sorted(artifact_dir.glob("video*.webm")):
+        b64 = base64.b64encode(video.read_bytes()).decode()
+        extra_items.append(extras.video(b64, name="操作过程录屏", mime_type="video/webm", extension="webm"))
+
     # trace.zip 的发布地址在测试运行时就能算出来——流水线会在测试跑完后
     # 把它放到 <TRACE_PUBLIC_BASEURL>/<构建号>/<产物目录名>.zip，
     # 目录名就是这里的 artifact_dir.name。挂成报告里的可点链接，
@@ -166,4 +172,4 @@ def _attach_failed_evidence(item, teardown_report):
         extra_items.append(extras.url(zip_url, name="下载 trace.zip"))
 
     teardown_report.extras = extra_items
-    print(f"\n[证据] 已挂入 HTML 报告：{artifact_dir.name}/（截图 + Trace 链接）")
+    print(f"\n[证据] 已挂入 HTML 报告：{artifact_dir.name}/（截图 + 录屏 + Trace 链接）")
