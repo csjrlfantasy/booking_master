@@ -1,6 +1,6 @@
 // 票多星课程 CICD 演示流水线（第 13 课真实环境版）
 // 链路：拉代码 → Maven 构建 jar → Docker 部署后端 → 健康检查
-//      → Playwright UI 测试（失败留 Screenshot/Trace/Video）→ JUnit + HTML 报告 → 飞书群通知
+//      → Playwright UI 测试（失败留 Screenshot/Trace/Video）→ JUnit + Allure → 飞书群通知
 pipeline {
     agent any
     options {
@@ -76,7 +76,7 @@ pipeline {
                             .venv/bin/pip install -q -r course-ui-tests/requirements.txt
                             cd course-ui-tests
                             ../.venv/bin/python -m pytest framework/tests -q \
-                              --html=report.html --self-contained-html --junitxml=junit.xml \
+                              --alluredir=allure-results --junitxml=junit.xml \
                               --tracing retain-on-failure --screenshot only-on-failure --video retain-on-failure
                         '''
                     }
@@ -87,26 +87,30 @@ pipeline {
     post {
         always {                                         // 失败也要收报告，越失败越需要证据
             junit allowEmptyResults: true, testResults: 'course-ui-tests/junit.xml'
-            archiveArtifacts artifacts: 'course-ui-tests/report.html, course-ui-tests/test-results/**/*', allowEmptyArchive: true
             script {
-                // 把 HTML 报告和失败用例的 trace.zip 一起发布到 nginx 静态目录，
-                // 构建描述里生成"点开即看"的报告链接和在线 Trace Viewer 链接。
+                if (fileExists('course-ui-tests/allure-results')) {
+                    allure includeProperties: false, results: [[path: 'course-ui-tests/allure-results']]
+                }
+            }
+            archiveArtifacts artifacts: 'course-ui-tests/test-results/**/*', allowEmptyArchive: true
+            script {
+                // 把失败用例的 trace.zip 发布到 nginx 静态目录，
+                // 构建描述里生成"点开即看"的在线 Trace Viewer 链接（不用下载再拖文件）。
                 // 注意：不用 findFiles（需要 Pipeline Utility Steps 插件），纯 shell 实现。
                 sh 'HOST_WS=$(echo "$WORKSPACE" | sed "s#^/var/jenkins_home#/opt/jenkins_home#") && bash ci/course/publish-traces.sh "$HOST_WS" "$BUILD_NUMBER"'
-                def reportUrl = "http://154.12.20.250/ci-traces/${env.BUILD_NUMBER}/report.html"
                 def listing = sh(returnStdout: true, script: 'ls /var/jenkins_home/workspace/"$JOB_NAME"/course-ui-tests/test-results/*/trace.zip 2>/dev/null || true').trim()
-                def lines = listing ? listing.split('\n').collect { f ->
-                    def slug = f.split('/')[-2]
-                    "https://trace.playwright.dev/?trace=http://154.12.20.250/ci-traces/${env.BUILD_NUMBER}/${slug}.zip"
-                }.join('\n') : ''
-                currentBuild.description = "HTML 测试报告（点开即看）：${reportUrl}" +
-                    (lines ? "\n失败用例 Trace 在线回放：\n${lines}" : '')
-                env.REPORT_URL = reportUrl
+                if (listing) {
+                    def lines = listing.split('\n').collect { f ->
+                        def slug = f.split('/')[-2]
+                        "https://trace.playwright.dev/?trace=http://154.12.20.250/ci-traces/${env.BUILD_NUMBER}/${slug}.zip"
+                    }.join('\n')
+                    currentBuild.description = "失败用例 Trace 在线回放（点开即看，无需下载）：\n${lines}"
+                }
             }
             withEnv(["BUILD_STATUS=${currentBuild.currentResult}"]) {
                 withCredentials([string(credentialsId: 'feishu-webhook-url', variable: 'FEISHU_WEBHOOK')]) {
                     sh '''curl -sS -X POST -H 'Content-Type: application/json' \
-                      -d "{\\"msg_type\\":\\"text\\",\\"content\\":{\\"text\\":\\"[票多星 CICD] 构建 #${BUILD_NUMBER}：${BUILD_STATUS}\\nJob：${JOB_NAME}\\nHTML 报告：${REPORT_URL}\\n控制台：${BUILD_URL}console\\"}}" \
+                      -d "{\\"msg_type\\":\\"text\\",\\"content\\":{\\"text\\":\\"[票多星 CICD] 构建 #${BUILD_NUMBER}：${BUILD_STATUS}\\nJob：${JOB_NAME}\\nAllure 报告：${BUILD_URL}allure/\\n控制台：${BUILD_URL}console\\"}}" \
                       "$FEISHU_WEBHOOK" || echo "飞书通知发送失败（不阻塞构建）"'''
                 }
             }
