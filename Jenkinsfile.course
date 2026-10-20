@@ -30,7 +30,12 @@ pipeline {
         stage('Build jar') {                            // Maven 跑在一次性容器里，Jenkins 不用装 Java/Maven
             when { expression { params.DEPLOY_APP } }
             steps {
-                sh 'docker run --rm -e MAVEN_OPTS=-Xmx512m -v "$WORKSPACE":/ws -w /ws maven:3.9-eclipse-temurin-17 mvn -B -q -DskipTests -pl booking-api -am package'
+                // docker.sock 直连宿主 daemon：挂载路径必须是【宿主机】路径，
+                // 所以把容器内 /var/jenkins_home 换成宿主上的 /opt/jenkins_home
+                sh '''
+                    HOST_WS=$(echo "$WORKSPACE" | sed 's#^/var/jenkins_home#/opt/jenkins_home#')
+                    docker run --rm -e MAVEN_OPTS=-Xmx512m -v "$HOST_WS":/ws -w /ws maven:3.9-eclipse-temurin-17 mvn -B -q -DskipTests -pl booking-api -am package
+                '''
             }
         }
         stage('Deploy') {                               // 继承旧容器全部环境变量，换镜像重启
