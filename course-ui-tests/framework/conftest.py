@@ -8,6 +8,7 @@
 配置来源只有一个：config/settings.py（Python 常量，import 即用）。
 """
 
+import os
 import re
 from pathlib import Path
 
@@ -96,11 +97,22 @@ def admin_page(browser: Browser, admin_storage_state: dict, web_url: str) -> Pag
 
 @pytest.hookimpl(hookwrapper=True)
 def pytest_runtest_makereport(item):
-    """暂存 call 阶段的结论，teardown 阶段据此判断要不要留证据。"""
+    """暂存 call 阶段的结论；teardown 报告生成时把失败证据挂进 Allure。
+
+    为什么是 makereport 的 teardown 阶段而不是 pytest_runtest_teardown：
+    1. 时机够晚——fixture 已全部拆除，pytest-playwright 的 trace.zip
+       已经写盘，产物文件齐了；
+    2. 时机又够早——Allure 此时还在写本条用例的报告（它自己的
+       stdout 附件也是这个阶段挂的），附件和链接能落到报告里。
+    用 pytest_runtest_teardown 钩子会错过 Allure 的写入窗口，
+    附件被静默丢弃（报告里什么都看不到），这是实测踩出来的坑。
+    """
     outcome = yield
     report = outcome.get_result()
     if report.when == "call":
         item.rep_call = report
+    elif report.when == "teardown":
+        _attach_failed_evidence(item)
 
 
 def _norm(text: str) -> str:
@@ -108,15 +120,8 @@ def _norm(text: str) -> str:
     return re.sub(r"[^0-9a-z一-鿿]+", "", text.lower())
 
 
-@pytest.hookimpl(hookwrapper=True)
-def pytest_runtest_teardown(item):
-    """失败用例的 trace/截图/录像挂进 Allure。
-
-    为什么放在 teardown：pytest-playwright 要等浏览器上下文关闭
-    （fixture 收尾）才把 trace.zip 写盘；hookwrapper 的 yield 之后，
-    本用例的 fixture 都已拆除，产物文件齐了。
-    """
-    yield
+def _attach_failed_evidence(item):
+    """失败用例的 trace/截图/录像/在线回放链接挂进 Allure。"""
     report = getattr(item, "rep_call", None)
     if report is None or not report.failed:
         return  # PASS 不留证据：全挂的话磁盘和报告都吃不消
@@ -147,4 +152,18 @@ def pytest_runtest_teardown(item):
         allure.attach.file(str(screenshot), name="失败现场截图", extension="png")
     for video in sorted(artifact_dir.glob("video*.webm")):
         allure.attach.file(str(video), name="操作过程录像", extension="webm")
+
+    # 在线回放链接：trace.zip 的下载地址在测试运行时就能算出来——
+    # 流水线会在测试跑完后把它发布到 <TRACE_PUBLIC_BASEURL>/<构建号>/<产物目录名>.zip，
+    # 目录名就是这里的 artifact_dir.name。用 allure.dynamic.link 挂到用例的
+    # Links 区，报告里点一下就进官方在线 Trace Viewer，不用下载再拖文件。
+    # 本地跑没有 BUILD_NUMBER，跳过（本地想看用 playwright show-trace）。
+    build_number = os.getenv("BUILD_NUMBER")
+    if build_number:
+        public_base = os.getenv("TRACE_PUBLIC_BASEURL", "http://154.12.20.250/ci-traces")
+        trace_url = f"{public_base}/{build_number}/{artifact_dir.name}.zip"
+        allure.dynamic.link(
+            f"https://trace.playwright.dev/?trace={trace_url}",
+            name="在线回放 Trace（免下载，点开直接看现场）",
+        )
     print(f"\n[证据] 已挂入 Allure：{artifact_dir.name}/（trace + 截图 + 录像）")
