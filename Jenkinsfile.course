@@ -1,0 +1,92 @@
+// 票多星课程 CICD 演示流水线（第 13 课真实环境版）
+// 链路：拉代码 → Maven 构建 jar → Docker 部署后端 → 健康检查
+//      → Playwright UI 测试（失败留 Screenshot/Trace/Video）→ JUnit + Allure → 飞书群通知
+pipeline {
+    agent any
+    options {
+        disableConcurrentBuilds()                       // 服务器内存小，禁止并发构建
+        timestamps()
+        buildDiscarder(logRotator(numToKeepStr: '20'))
+        timeout(time: 60, unit: 'MINUTES')
+    }
+    parameters {
+        booleanParam(name: 'DEPLOY_APP',   defaultValue: true, description: '重新构建并部署后端')
+        booleanParam(name: 'RUN_UI_TESTS', defaultValue: true, description: '部署后运行 UI 自动化测试')
+    }
+    environment {
+        APP_CONTAINER = 'ticketmore-api'
+        APP_NETWORK   = 'ticketmore'
+        // jenkins 容器已接入 ticketmore 网络，直连后端容器，不经过 nginx
+        API_URL       = 'http://ticketmore-api:8088/api'
+        HEALTH_URL    = 'http://ticketmore-api:8088/api/tickets/hot'
+        // 前端走公网 IP（Host 头匹配 nginx 的 ticketmore 站点）
+        WEB_URL       = 'http://154.12.20.250'
+        PLAYWRIGHT_BROWSERS_PATH = '/opt/pw-browsers'   // 镜像里预装的 Chromium
+    }
+    stages {
+        stage('Checkout') {
+            steps { deleteDir(); checkout scm }
+        }
+        stage('Build jar') {                            // Maven 跑在一次性容器里，Jenkins 不用装 Java/Maven
+            when { expression { params.DEPLOY_APP } }
+            steps {
+                sh 'docker run --rm -e MAVEN_OPTS=-Xmx512m -v "$WORKSPACE":/ws -w /ws maven:3.9-eclipse-temurin-17 mvn -B -q -DskipTests -pl booking-api -am package'
+            }
+        }
+        stage('Deploy') {                               // 继承旧容器全部环境变量，换镜像重启
+            when { expression { params.DEPLOY_APP } }
+            steps {
+                sh '''
+                    docker build -t ticketmore-api:build-$BUILD_NUMBER -f ci/course/Dockerfile.api .
+                    # 旧容器的全部环境变量导出为 env-file，新容器原样继承（密钥不落地到流水线代码）
+                    docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' $APP_CONTAINER > /tmp/api.env
+                    docker stop $APP_CONTAINER && docker rm $APP_CONTAINER
+                    docker run -d --name $APP_CONTAINER --network $APP_NETWORK --network-alias api \
+                      -p 127.0.0.1:8088:8088 --restart unless-stopped \
+                      --env-file /tmp/api.env ticketmore-api:build-$BUILD_NUMBER
+                    rm -f /tmp/api.env
+                    docker image prune -f
+                '''
+            }
+        }
+        stage('Health check') {                          // 部署后先探活，不健康直接判失败
+            when { expression { params.DEPLOY_APP } }
+            steps {
+                sh 'for i in $(seq 1 24); do curl -sf "$HEALTH_URL" && exit 0; sleep 5; done; echo "健康检查超时"; exit 1'
+            }
+        }
+        stage('UI tests') {
+            when { expression { params.RUN_UI_TESTS } }
+            steps {
+                withCredentials([string(credentialsId: 'course-test-key', variable: 'COURSE_TEST_KEY')]) {
+                    sh '''
+                        python3 -m venv .venv
+                        .venv/bin/pip install -q -r course-ui-tests/requirements.txt
+                        cd course-ui-tests
+                        ../.venv/bin/python -m pytest framework/tests -q \
+                          --alluredir=allure-results --junitxml=junit.xml \
+                          --tracing retain-on-failure --screenshot only-on-failure --video retain-on-failure
+                    '''
+                }
+            }
+        }
+    }
+    post {
+        always {                                         // 失败也要收报告，越失败越需要证据
+            junit allowEmptyResults: true, testResults: 'course-ui-tests/junit.xml'
+            script {
+                if (fileExists('course-ui-tests/allure-results')) {
+                    allure includeProperties: false, results: [[path: 'course-ui-tests/allure-results']]
+                }
+            }
+            archiveArtifacts artifacts: 'course-ui-tests/test-results/**/*', allowEmptyArchive: true
+            withEnv(["BUILD_STATUS=${currentBuild.currentResult}"]) {
+                withCredentials([string(credentialsId: 'feishu-webhook-url', variable: 'FEISHU_WEBHOOK')]) {
+                    sh '''curl -sS -X POST -H 'Content-Type: application/json' \
+                      -d "{\\"msg_type\\":\\"text\\",\\"content\\":{\\"text\\":\\"[票多星 CICD] 构建 #${BUILD_NUMBER}：${BUILD_STATUS}\\nJob：${JOB_NAME}\\nAllure 报告：${BUILD_URL}allure/\\n控制台：${BUILD_URL}console\\"}}" \
+                      "$FEISHU_WEBHOOK" || echo "飞书通知发送失败（不阻塞构建）"'''
+                }
+            }
+        }
+    }
+}
