@@ -12,6 +12,7 @@ pipeline {
     parameters {
         booleanParam(name: 'DEPLOY_APP',   defaultValue: true, description: '重新构建并部署后端')
         booleanParam(name: 'RUN_UI_TESTS', defaultValue: true, description: '部署后运行 UI 自动化测试')
+        booleanParam(name: 'DEMO_FAILURE', defaultValue: false, description: '课堂演示：让一条故意写错的用例参与运行，构建必红')
     }
     environment {
         APP_CONTAINER = 'ticketmore-api'
@@ -68,14 +69,17 @@ pipeline {
             when { expression { params.RUN_UI_TESTS } }
             steps {
                 withCredentials([string(credentialsId: 'course-test-key', variable: 'COURSE_TEST_KEY')]) {
-                    sh '''
-                        python3 -m venv .venv
-                        .venv/bin/pip install -q -r course-ui-tests/requirements.txt
-                        cd course-ui-tests
-                        ../.venv/bin/python -m pytest framework/tests -q \
-                          --alluredir=allure-results --junitxml=junit.xml \
-                          --tracing retain-on-failure --screenshot only-on-failure --video retain-on-failure
-                    '''
+                    // COURSE_DEMO_FAILURE=true 时，受控失败用例才参与运行（课堂演示开关）
+                    withEnv(["COURSE_DEMO_FAILURE=${params.DEMO_FAILURE}"]) {
+                        sh '''
+                            python3 -m venv .venv
+                            .venv/bin/pip install -q -r course-ui-tests/requirements.txt
+                            cd course-ui-tests
+                            ../.venv/bin/python -m pytest framework/tests -q \
+                              --alluredir=allure-results --junitxml=junit.xml \
+                              --tracing retain-on-failure --screenshot only-on-failure --video retain-on-failure
+                        '''
+                    }
                 }
             }
         }
@@ -89,6 +93,19 @@ pipeline {
                 }
             }
             archiveArtifacts artifacts: 'course-ui-tests/test-results/**/*', allowEmptyArchive: true
+            script {
+                // 把失败用例的 trace.zip 发布到 nginx 静态目录，
+                // 构建描述里生成"点开即看"的在线 Trace Viewer 链接（不用下载再拖文件）
+                def traces = findFiles(glob: 'course-ui-tests/test-results/**/trace.zip')
+                if (traces.length > 0) {
+                    sh 'HOST_WS=$(echo "$WORKSPACE" | sed "s#^/var/jenkins_home#/opt/jenkins_home#") && bash ci/course/publish-traces.sh "$HOST_WS" "$BUILD_NUMBER"'
+                    def links = traces.collect { t ->
+                        def slug = t.path.split('/')[-2]
+                        "<li><a href='https://trace.playwright.dev/?trace=http://154.12.20.250/ci-traces/${env.BUILD_NUMBER}/${slug}.zip' target='_blank'>${slug}</a></li>"
+                    }.join('')
+                    currentBuild.description = "失败用例 Trace 在线回放（点开即看，无需下载）：<ul>${links}</ul>"
+                }
+            }
             withEnv(["BUILD_STATUS=${currentBuild.currentResult}"]) {
                 withCredentials([string(credentialsId: 'feishu-webhook-url', variable: 'FEISHU_WEBHOOK')]) {
                     sh '''curl -sS -X POST -H 'Content-Type: application/json' \
