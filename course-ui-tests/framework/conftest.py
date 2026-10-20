@@ -8,6 +8,10 @@
 配置来源只有一个：config/settings.py（Python 常量，import 即用）。
 """
 
+import re
+from pathlib import Path
+
+import allure
 import pytest
 from playwright.sync_api import Browser, Page, Playwright
 
@@ -81,3 +85,66 @@ def admin_page(browser: Browser, admin_storage_state: dict, web_url: str) -> Pag
     page = context.new_page()
     yield page
     context.close()  # 显式关闭，避免每个用例泄漏一个浏览器上下文
+
+
+# ── 失败证据：自动挂进 Allure（第 13 课证据链）──────────────
+# Allure 负责"哪条挂了、整体通过率"，Trace 负责"这条到底怎么挂的"。
+# 下面两个钩子把失败用例的 trace.zip / 截图 / 录像挂到 Allure 报告对应
+# 用例下面——报告页直接下载 trace.zip，拖到 https://trace.playwright.dev
+# 就能逐帧回放 DOM、网络请求、console 日志，不用登服务器翻文件。
+
+
+@pytest.hookimpl(hookwrapper=True)
+def pytest_runtest_makereport(item):
+    """暂存 call 阶段的结论，teardown 阶段据此判断要不要留证据。"""
+    outcome = yield
+    report = outcome.get_result()
+    if report.when == "call":
+        item.rep_call = report
+
+
+def _norm(text: str) -> str:
+    """只留字母数字，用于把 nodeid 和 pytest-playwright 的产物目录名做宽松匹配。"""
+    return re.sub(r"[^0-9a-z一-鿿]+", "", text.lower())
+
+
+@pytest.hookimpl(hookwrapper=True)
+def pytest_runtest_teardown(item):
+    """失败用例的 trace/截图/录像挂进 Allure。
+
+    为什么放在 teardown：pytest-playwright 要等浏览器上下文关闭
+    （fixture 收尾）才把 trace.zip 写盘；hookwrapper 的 yield 之后，
+    本用例的 fixture 都已拆除，产物文件齐了。
+    """
+    yield
+    report = getattr(item, "rep_call", None)
+    if report is None or not report.failed:
+        return  # PASS 不留证据：全挂的话磁盘和报告都吃不消
+
+    # pytest-playwright 按用例名建目录（test-results/<nodeid 变体>/），
+    # 找到本用例的产物目录；找不到说明是纯 API 用例，没有浏览器产物，跳过
+    target = _norm(item.nodeid)
+    candidates = sorted(
+        (
+            p
+            for p in Path("test-results").rglob("trace.zip")
+            if target.endswith(_norm(p.parent.name)) and p.stat().st_mtime >= report.start - 1
+        ),
+        key=lambda p: p.stat().st_mtime,
+    )
+    if not candidates:
+        print(f"\n[证据] {item.name} 没有浏览器产物（纯 API 用例属正常）")
+        return
+    artifact_dir = candidates[-1].parent
+
+    allure.attach.file(
+        str(artifact_dir / "trace.zip"),
+        name="Trace 回放包（下载后拖到 trace.playwright.dev 逐帧看现场）",
+        extension="zip",
+    )
+    # pytest-playwright 失败截图命名为 test-failed-1.png（多页面对话框会递增）
+    for screenshot in sorted(artifact_dir.glob("*.png")):
+        allure.attach.file(str(screenshot), name="失败现场截图", extension="png")
+    for video in sorted(artifact_dir.glob("video*.webm")):
+        allure.attach.file(str(video), name="操作过程录像", extension="webm")
+    print(f"\n[证据] 已挂入 Allure：{artifact_dir.name}/（trace + 截图 + 录像）")
