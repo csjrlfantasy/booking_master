@@ -95,15 +95,16 @@ pipeline {
             archiveArtifacts artifacts: 'course-ui-tests/test-results/**/*', allowEmptyArchive: true
             script {
                 // 把失败用例的 trace.zip 发布到 nginx 静态目录，
-                // 构建描述里生成"点开即看"的在线 Trace Viewer 链接（不用下载再拖文件）
-                def traces = findFiles(glob: 'course-ui-tests/test-results/**/trace.zip')
-                if (traces.length > 0) {
-                    sh 'HOST_WS=$(echo "$WORKSPACE" | sed "s#^/var/jenkins_home#/opt/jenkins_home#") && bash ci/course/publish-traces.sh "$HOST_WS" "$BUILD_NUMBER"'
-                    def links = traces.collect { t ->
-                        def slug = t.path.split('/')[-2]
-                        "<li><a href='https://trace.playwright.dev/?trace=http://154.12.20.250/ci-traces/${env.BUILD_NUMBER}/${slug}.zip' target='_blank'>${slug}</a></li>"
-                    }.join('')
-                    currentBuild.description = "失败用例 Trace 在线回放（点开即看，无需下载）：<ul>${links}</ul>"
+                // 构建描述里生成"点开即看"的在线 Trace Viewer 链接（不用下载再拖文件）。
+                // 注意：不用 findFiles（需要 Pipeline Utility Steps 插件），纯 shell 实现。
+                sh 'HOST_WS=$(echo "$WORKSPACE" | sed "s#^/var/jenkins_home#/opt/jenkins_home#") && bash ci/course/publish-traces.sh "$HOST_WS" "$BUILD_NUMBER"'
+                def listing = sh(returnStdout: true, script: 'ls /var/jenkins_home/workspace/"$JOB_NAME"/course-ui-tests/test-results/*/trace.zip 2>/dev/null || true').trim()
+                if (listing) {
+                    def lines = listing.split('\n').collect { f ->
+                        def slug = f.split('/')[-2]
+                        "https://trace.playwright.dev/?trace=http://154.12.20.250/ci-traces/${env.BUILD_NUMBER}/${slug}.zip"
+                    }.join('\n')
+                    currentBuild.description = "失败用例 Trace 在线回放（点开即看，无需下载）：\n${lines}"
                 }
             }
             withEnv(["BUILD_STATUS=${currentBuild.currentResult}"]) {
