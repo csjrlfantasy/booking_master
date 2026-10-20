@@ -31,10 +31,14 @@ pipeline {
             when { expression { params.DEPLOY_APP } }
             steps {
                 // docker.sock 直连宿主 daemon：挂载路径必须是【宿主机】路径，
-                // 所以把容器内 /var/jenkins_home 换成宿主上的 /opt/jenkins_home
+                // 所以把容器内 /var/jenkins_home 换成宿主上的 /opt/jenkins_home。
+                // -u 1000:1000 让 Maven 以 jenkins 用户身份写文件（target/、.m2），
+                // 否则 root 属主的产物会让下次构建的 deleteDir() 删不掉工作目录。
                 sh '''
                     HOST_WS=$(echo "$WORKSPACE" | sed 's#^/var/jenkins_home#/opt/jenkins_home#')
-                    docker run --rm -e MAVEN_OPTS=-Xmx512m -v "$HOST_WS":/ws -w /ws maven:3.9-eclipse-temurin-17 mvn -B -q -DskipTests -pl booking-api -am package
+                    docker run --rm -u 1000:1000 -e MAVEN_CONFIG=/ws/.m2 -e MAVEN_OPTS=-Xmx512m \
+                      -v "$HOST_WS":/ws -w /ws maven:3.9-eclipse-temurin-17 \
+                      mvn -B -q -DskipTests -pl booking-api -am package
                 '''
             }
         }
