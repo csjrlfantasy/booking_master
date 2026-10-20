@@ -10,20 +10,21 @@ HOST_WS="$1"
 BUILD="$2"
 SRC="$HOST_WS/course-ui-tests/test-results"
 
-if [ ! -d "$SRC" ]; then
-  echo "没有 test-results 目录，跳过 trace 发布"
-  exit 0
-fi
-
+# 注意：这个脚本跑在 Jenkins 容器里，但路径是【宿主机】路径（docker.sock 直连宿主 daemon），
+# 所以不能在本机 [ -d ] 判断目录是否存在——把检查放到 docker 容器内部做。
 docker run --rm \
   -v "$SRC:/traces:ro" \
   -v /www/wwwroot/ci-traces:/out \
   alpine sh -c "
     mkdir -p /out/$BUILD
+    found=0
     for d in /traces/*/; do
       if [ -f \"\$d/trace.zip\" ]; then
         cp \"\$d/trace.zip\" \"/out/$BUILD/\$(basename \$d).zip\"
         echo \"published: \$(basename \$d).zip\"
+        found=1
       fi
     done
+    [ \"\$found\" = 0 ] && echo '没有 trace.zip 产物（全绿构建属正常）'
+    exit 0
   "
