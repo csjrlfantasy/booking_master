@@ -79,6 +79,11 @@ function Import-LocalEnvironment {
         if ($null -eq [Environment]::GetEnvironmentVariable($name, [EnvironmentVariableTarget]::Process)) {
             [Environment]::SetEnvironmentVariable($name, $value, [EnvironmentVariableTarget]::Process)
         }
+        # 课程教学变量必须以 .env 为准：shell 里残留的旧值若优先，
+        # 后端拿到的密钥会和 .env 不一致，清理接口报 403 invalid course test key。
+        if ($name -in @('COURSE_TEST_KEY', 'COURSE_TEST_SUPPORT_ENABLED')) {
+            [Environment]::SetEnvironmentVariable($name, $value, [EnvironmentVariableTarget]::Process)
+        }
     }
     Write-Host "[CONFIG] Loaded local runtime configuration: $Path" -ForegroundColor DarkGray
 }
